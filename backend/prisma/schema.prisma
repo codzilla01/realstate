@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  AGENT
+  VIEWER
+}
+
+enum PropertyPurpose {
+  SALE
+  RENT
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  RENTED
+  DRAFT
+}
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  OFFICE
+  LAND
+  SHOP
+  BUILDING
+}
+
+enum ContractStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum RequestStatus {
+  NEW
+  CONTACTED
+  IN_PROGRESS
+  CLOSED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  name         String
+  email        String?  @unique
+  passwordHash String
+  role         Role     @default(AGENT)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  properties    Property[]      @relation("AgentProperties")
+  contracts     Contract[]      @relation("AgentContracts")
+  otpCodes      OtpCode[]
+  notifications Notification[]
+
+  @@index([role])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  purpose   String   @default("LOGIN")
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Property {
+  id          String           @id @default(cuid())
+  title       String
+  titleAr     String?
+  description String?          @db.Text
+  descriptionAr String?        @db.Text
+  purpose     PropertyPurpose
+  type        PropertyType
+  status      PropertyStatus   @default(AVAILABLE)
+  price       Decimal          @db.Decimal(14, 2)
+  currency    String           @default("EGP")
+  areaSqm     Float?
+  bedrooms    Int?
+  bathrooms   Int?
+  address     String?
+  city        String?
+  district    String?
+  lat         Float?
+  lng         Float?
+  images      PropertyImage[]
+  featured    Boolean          @default(false)
+  agentId     String?
+  agent       User?            @relation("AgentProperties", fields: [agentId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  contracts Contract[]
+  requests  PropertyRequest[]
+
+  @@index([purpose, status, type])
+  @@index([city])
+}
+
+model PropertyImage {
+  id         String   @id @default(cuid())
+  propertyId String
+  url        String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contracts Contract[]
+  requests  PropertyRequest[]
+
+  @@index([phone])
+}
+
+model Contract {
+  id           String         @id @default(cuid())
+  propertyId   String
+  clientId     String
+  agentId      String?
+  type         PropertyPurpose
+  status       ContractStatus @default(PENDING)
+  amount       Decimal        @db.Decimal(14, 2)
+  commissionPct Float         @default(3)
+  startDate    DateTime?
+  endDate      DateTime?
+  notes        String?        @db.Text
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+  client   Client   @relation(fields: [clientId], references: [id])
+  agent    User?    @relation("AgentContracts", fields: [agentId], references: [id])
+
+  @@index([status])
+}
+
+model PropertyRequest {
+  id         String        @id @default(cuid())
+  propertyId String?
+  clientId   String?
+  name       String
+  phone      String
+  email      String?
+  message    String?       @db.Text
+  status     RequestStatus @default(NEW)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  property Property? @relation(fields: [propertyId], references: [id])
+  client   Client?   @relation(fields: [clientId], references: [id])
+
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
