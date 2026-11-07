@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
 import { optionalAuth, requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
+import { serializeProperties, serializeProperty } from "../lib/serialize.js";
 
 const router = Router();
 
@@ -94,7 +95,7 @@ router.get("/", optionalAuth, async (req, res) => {
   ]);
 
   res.json({
-    items,
+    items: serializeProperties(items),
     total,
     page: currentPage,
     pageSize: take,
@@ -114,7 +115,7 @@ router.get("/:id", optionalAuth, async (req, res) => {
   if (!property || (property.status === "DRAFT" && !isStaff(req))) {
     return res.status(404).json({ error: "Property not found" });
   }
-  res.json({ property });
+  res.json({ property: serializeProperty(property) });
 });
 
 // ── Admin: create/update/delete ──────────────────────────────────────────
@@ -162,7 +163,7 @@ router.post("/", ...canManage, validate(propertySchema), async (req, res) => {
     },
     include: { images: true },
   });
-  res.status(201).json({ property });
+  res.status(201).json({ property: serializeProperty(property) });
 });
 
 router.put("/:id", ...canManage, validate(propertySchema.partial()), async (req, res) => {
@@ -182,7 +183,7 @@ router.put("/:id", ...canManage, validate(propertySchema.partial()), async (req,
     },
     include: { images: true },
   });
-  res.json({ property });
+  res.json({ property: serializeProperty(property) });
 });
 
 router.delete("/:id", requireAuth, requireRole("ADMIN", "MANAGER"), async (req, res) => {

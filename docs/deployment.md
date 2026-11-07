@@ -173,6 +173,7 @@ railway run --service api node prisma/seed.js
 
 ## قائمة تحقق قبل الإطلاق
 
+- [ ] `npm run doctor` بلا أخطاء (Node، Prisma، قاعدة البيانات، JWT، مجلد الصور، البناء)
 - [ ] `NODE_ENV=production`
 - [ ] `JWT_SECRET` عشوائي 32+ حرفاً (لا القيمة الافتراضية)
 - [ ] `CORS_ORIGIN` = دومين الموقع فقط (ليس `*`)

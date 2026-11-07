@@ -99,6 +99,8 @@ realstate/
 
 ## التشغيل الحقيقي (MySQL)
 
+> قبل البدء: `npm run doctor` يفحص كل المتطلبات ويخبرك بالمفقود بالتحديد.
+
 ```bash
 # 1) قاعدة البيانات
 mysql -u root -p -e "CREATE DATABASE realestate CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
@@ -144,7 +146,8 @@ docker compose up --build
 | `npm run dev:api` / `npm run dev:web` | تشغيل الخادم/الواجهة منفصلين |
 | `npm run db:setup` | هجرة + بيانات تجريبية |
 | `npm run build` | بناء الواجهة للإنتاج |
-| `npm test` | اختبارات الوحدة (node:test، 13 اختباراً) |
+| `npm run doctor` | فحص جاهزية النسخة الكاملة (Node، Prisma، DB، JWT، الصور، البناء) |
+| `npm test` | اختبارات الوحدة (node:test، 19 اختباراً) |
 | `node scripts/screenshots.mjs` | لقطات شاشة تسويقية تلقائية (يتطلب Playwright) |
 
 داخل `backend/`: `prisma:generate`, `prisma:migrate`, `prisma:deploy`, `prisma:seed`, `prisma:studio`.

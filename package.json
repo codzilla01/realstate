@@ -17,6 +17,7 @@
     "db:setup": "npm --prefix backend run prisma:migrate && npm --prefix backend run prisma:seed",
     "build": "npm --prefix frontend run build",
     "start:api": "npm --prefix backend start",
-    "test": "npm --prefix backend test"
+    "test": "npm --prefix backend test",
+    "doctor": "node scripts/doctor.mjs"
   }
 }

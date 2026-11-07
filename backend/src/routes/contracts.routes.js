@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
 import { requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
+import { serializeContract, serializeContracts } from "../lib/serialize.js";
 
 const router = Router();
 // Read access for the whole staff, writes are checked per route.
@@ -18,7 +19,7 @@ router.get("/", async (req, res) => {
     include: { property: true, client: true, agent: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
   });
-  res.json({ items: contracts });
+  res.json({ items: serializeContracts(contracts) });
 });
 
 const contractSchema = z.object({
@@ -43,7 +44,7 @@ router.post("/", requireStaff, validate(contractSchema), async (req, res) => {
       endDate: req.body.endDate ? new Date(req.body.endDate) : undefined,
     },
   });
-  res.status(201).json({ contract });
+  res.status(201).json({ contract: serializeContract(contract) });
 });
 
 router.put("/:id", requireStaff, validate(contractSchema.partial()), async (req, res) => {
@@ -56,7 +57,7 @@ router.put("/:id", requireStaff, validate(contractSchema.partial()), async (req,
       ...(endDate ? { endDate: new Date(endDate) } : {}),
     },
   });
-  res.json({ contract });
+  res.json({ contract: serializeContract(contract) });
 });
 
 router.delete("/:id", requireRole("ADMIN", "MANAGER"), async (req, res) => {

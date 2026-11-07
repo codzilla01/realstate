@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
 import { requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
+import { serializeClient } from "../lib/serialize.js";
 
 const router = Router();
 // Everyone on staff (including read-only VIEWER) can browse clients.
@@ -23,7 +24,7 @@ router.get("/:id", async (req, res) => {
     include: { contracts: true, requests: true },
   });
   if (!client) return res.status(404).json({ error: "Client not found" });
-  res.json({ client });
+  res.json({ client: serializeClient(client) });
 });
 
 const clientSchema = z.object({
@@ -40,7 +41,7 @@ router.post("/", requireStaff, validate(clientSchema), async (req, res) => {
 
 router.put("/:id", requireStaff, validate(clientSchema.partial()), async (req, res) => {
   const client = await prisma.client.update({ where: { id: req.params.id }, data: req.body });
-  res.json({ client });
+  res.json({ client: serializeClient(client) });
 });
 
 router.delete("/:id", requireRole("ADMIN", "MANAGER"), async (req, res) => {

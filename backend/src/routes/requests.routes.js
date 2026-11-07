@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
 import { requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
+import { serializeRequest, serializeRequests } from "../lib/serialize.js";
 
 const router = Router();
 
@@ -38,7 +39,7 @@ router.post(
       });
     }
 
-    res.status(201).json({ request });
+    res.status(201).json({ request: serializeRequest(request) });
   }
 );
 
@@ -56,7 +57,7 @@ router.get("/", async (req, res) => {
     include: { property: true, client: true },
     orderBy: { createdAt: "desc" },
   });
-  res.json({ items });
+  res.json({ items: serializeRequests(items) });
 });
 
 router.put("/:id", requireStaff, validate(z.object({
@@ -67,7 +68,7 @@ router.put("/:id", requireStaff, validate(z.object({
     where: { id: req.params.id },
     data: req.body,
   });
-  res.json({ request });
+  res.json({ request: serializeRequest(request) });
 });
 
 export default router;

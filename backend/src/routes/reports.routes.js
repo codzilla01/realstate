@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
+import { toNumber } from "../lib/serialize.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("ADMIN", "MANAGER"));
@@ -45,7 +46,7 @@ router.get("/summary", async (req, res) => {
       activeContracts,
       completedContracts,
       newRequests,
-      totalRevenue: revenueAgg._sum.amount || 0,
+      totalRevenue: toNumber(revenueAgg._sum.amount) || 0,
     },
     byType,
     byPurpose,

@@ -80,8 +80,9 @@
 }
 ```
 
-> ملاحظة: حقل `price` يُعيده Prisma كـ `Decimal` (سلسلة نصية). الواجهة تحوّله
-> تلقائياً عند العرض؛ في التكاملات الخارجية استخدم `Number(price)`.
+> ملاحظة (1.1.1): حقول المبالغ (`price`, `amount`, `totalRevenue`) تُعاد
+> **أرقاماً** في JSON وليس نصوصاً — طبقة `src/lib/serialize.js` تحوّل
+> `Decimal` قبل الإرسال، والدقة محفوظة في قاعدة البيانات.
 
 ### `GET /api/properties/:id` — عام
 يعيد 404 للمسودات ما لم يكن الطالب من فريق العمل.
@@ -213,7 +214,7 @@ curl -X POST http://localhost:4000/api/uploads \
   "totals": {
     "totalProperties": 8, "availableProperties": 5, "totalClients": 3,
     "activeContracts": 1, "completedContracts": 1, "newRequests": 1,
-    "totalRevenue": "420000"
+    "totalRevenue": 420000
   },
   "byType":    [ { "type": "APARTMENT", "_count": { "_all": 4 } } ],
   "byPurpose": [ { "purpose": "SALE", "_count": { "_all": 5 } } ]
