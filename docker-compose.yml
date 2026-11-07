@@ -36,6 +36,10 @@ services:
       ALLOW_PUBLIC_REGISTRATION: "false"
       SEED_ON_START: ${SEED_ON_START:-true}
       PRISMA_SYNC: ${PRISMA_SYNC:-push}
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+    volumes:
+      - uploads:/app/uploads
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -56,3 +60,4 @@ services:
 
 volumes:
   db_data:
+  uploads:

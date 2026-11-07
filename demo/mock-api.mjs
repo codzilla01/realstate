@@ -42,6 +42,47 @@ const readBody = (req) =>
     });
   });
 
+const readRaw = (req) =>
+  new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > 6_000_000) {
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+
+/** Minimal multipart/form-data parser — enough for a single image field. */
+function parseMultipart(raw, contentType) {
+  const match = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType || "");
+  if (!match) return [];
+  const boundary = `--${match[1] || match[2]}`;
+  const parts = [];
+  let cursor = raw.indexOf(boundary);
+
+  while (cursor !== -1) {
+    const next = raw.indexOf(boundary, cursor + boundary.length);
+    if (next === -1) break;
+    const chunk = raw.subarray(cursor + boundary.length + 2, next - 2);
+    const headerEnd = chunk.indexOf("\r\n\r\n");
+    if (headerEnd !== -1) {
+      parts.push({
+        headers: chunk.subarray(0, headerEnd).toString("utf8"),
+        body: chunk.subarray(headerEnd + 4),
+      });
+    }
+    cursor = next;
+  }
+  return parts;
+}
+
+const uploads = new Map();
+
 const id = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 const now = () => new Date().toISOString();
 
@@ -805,6 +846,64 @@ route("GET", "/api/reports/summary", (req, res, user) => {
     byType,
     byPurpose,
   });
+});
+
+// Uploads (demo: kept in memory and served straight back)
+route("POST", "/api/uploads", async (req, res, user) => {
+  if (!user) return json(res, 401, { error: "Authentication required" });
+
+  const raw = await readRaw(req);
+  const parts = parseMultipart(raw, req.headers["content-type"]);
+  const filePart = parts.find(
+    (part) => /filename="/i.test(part.headers) && /content-type:\s*image\//i.test(part.headers)
+  );
+
+  if (!filePart || filePart.body.length === 0) {
+    return json(res, 400, { error: "No file received (field name: file)" });
+  }
+  if (filePart.body.length > 5 * 1024 * 1024) {
+    return json(res, 400, { error: "Image is too large (max 5 MB)" });
+  }
+
+  const mime = /content-type:\s*(image\/[a-z+]+)/i.exec(filePart.headers)[1].toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
+    return json(res, 400, { error: "Unsupported image. Allowed formats: JPEG, PNG, WebP." });
+  }
+
+  // نفس تحقق النسخة الحقيقية: البصمة أهم من الـ Content-Type
+  const bytes = filePart.body;
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const isPng =
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  const isWebp =
+    bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (!isJpeg && !isPng && !isWebp) {
+    return json(res, 400, { error: "Unsupported image. Allowed formats: JPEG, PNG, WebP." });
+  }
+
+  const filename = id("up");
+  uploads.set(filename, { body: Buffer.from(filePart.body), mime });
+
+  return json(res, 201, {
+    file: {
+      url: `/api/uploads/${filename}`,
+      filename,
+      mime,
+      size: filePart.body.length,
+    },
+  });
+});
+
+route("GET", "/api/uploads/:filename", (req, res, user, params) => {
+  const stored = uploads.get(params.filename);
+  if (!stored) return json(res, 404, { error: "Not found" });
+  res.writeHead(200, {
+    "Content-Type": stored.mime,
+    "Content-Length": stored.body.length,
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.end(stored.body);
 });
 
 // Health

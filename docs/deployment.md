@@ -87,21 +87,89 @@ sudo certbot --nginx -d your-domain.com -d www.your-domain.com
 
 ---
 
-## ج) منصات PaaS
+## ج) Vercel (الواجهة) + Railway أو Render (الـ API)
 
-| المنصة | الواجهة | الـ API | قاعدة البيانات |
-|---|---|---|---|
-| Vercel | `frontend` (Build: `npm run build`, Output: `dist`) | — | — |
-| Railway/Render | — | `backend` (Start: `npm start`, Build: `npm ci && npx prisma generate`) | MySQL add-on |
-| PlanetScale | — | — | بديل MySQL سحابي |
+السيناريو المعتاد: الواجهة على Vercel، والـ API وقاعدة MySQL على Railway.
+السبب: Vercel تشغّل دوال serverless، وهذا المشروع خادم Express طويل العمر
+(rate limiting في الذاكرة + Prisma + رفع ملفات) فلا يناسبها.
 
-ملاحظات:
-- على Vercel أضف Rewrite من `/api/*` إلى عنوان الـ API، أو اضبط
-  `VITE_API_URL` وقت البناء ثم أضف عنوان الدومين في `CORS_ORIGIN`.
-- على Railway/Render نفّذ الهجرة في أمر النشر:
-  `npx prisma db push && node src/server.js` (أو `migrate deploy` مع الهجرات).
+### 1) قاعدة البيانات (Railway)
+- New Project → **Add MySQL** (أو استخدم Aiven/PlanetScale).
+- انسخ `DATABASE_URL` الذي يولّده المزود (يحتوي المستخدم/كلمة المرور/المضيف).
+- عند استخدام PlanetScale أضف `?sslaccept=strict` واستخدم `relationMode = "prisma"`
+  بحذر (لا مفاتيح أجنبية).
 
----
+### 2) الـ API (Railway)
+| الإعداد | القيمة |
+|---|---|
+| Root Directory | `backend` |
+| Build Command | `npm ci && npx prisma generate` |
+| Start Command | `npx prisma db push --skip-generate && node src/server.js` |
+| Healthcheck Path | `/api/health` |
+
+> بعد أن تنشئ هجرات حقيقية (`npx prisma migrate dev --name init`) استبدل
+> `db push` بـ `npx prisma migrate deploy`.
+
+**متغيرات البيئة:**
+```env
+NODE_ENV=production
+DATABASE_URL=...            # من إضافة MySQL
+JWT_SECRET=...              # 32+ حرفاً عشوائياً
+CORS_ORIGIN=https://your-app.vercel.app
+JWT_EXPIRES_IN=7d
+EXPOSE_DEV_OTP=false
+ALLOW_PUBLIC_REGISTRATION=false
+UPLOAD_DIR=/data/uploads
+MAX_UPLOAD_MB=5
+```
+
+**القرص الدائم للصور:** أضف Volume (Railway) أو Disk (Render) واربطه بـ
+`/data`، واضبط `UPLOAD_DIR=/data/uploads`. بدون ذلك تُفقد الصور المرفوعة عند
+كل إعادة نشر — البديل هو تخزين كائني (S3/Cloudinary).
+
+**البذور (مرة واحدة):** من Railway Shell أو محلياً بـ`DATABASE_URL` السحابي:
+```bash
+railway run --service api node prisma/seed.js
+```
+
+### 3) الواجهة (Vercel)
+| الإعداد | القيمة |
+|---|---|
+| Root Directory | `frontend` |
+| Framework | Vite (يُكتشف تلقائياً) |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Environment | `VITE_API_URL=https://<api-host>/api` |
+
+ملف `frontend/vercel.json` مضمّن ويضبط:
+- إعادة كتابة كل المسارات إلى `index.html` (حتى تعمل روابط React Router مثل `/properties/123`).
+- كاش سنة كاملة لملفات `/assets/*` ومنع كاش `index.html`.
+
+### 4) الربط النهائي
+1. انشر الـ API أولاً وخذ رابطها (مثل `https://realestate-api.up.railway.app`).
+2. ضعها في `VITE_API_URL` على Vercel **ثم أعد النشر** (المتغير يُدمج وقت البناء).
+3. ضع دومين Vercel في `CORS_ORIGIN` على Railway **بلا** `/` في النهاية.
+4. اختبر: `/api/health` من المتصفح، تسجيل دخول، رفع صورة عقار، ظهورها في الموقع.
+
+### 5) Render (بديل للـ API)
+| الإعداد | القيمة |
+|---|---|
+| Environment | Node |
+| Root Directory | `backend` |
+| Build Command | `npm ci && npx prisma generate` |
+| Start Command | `npx prisma db push --skip-generate && node src/server.js` |
+| Health Check Path | `/api/health` |
+| Disk | mount `/var/data` → `UPLOAD_DIR=/var/data/uploads` |
+
+### ملاحظات PaaS الحرجة
+
+- **الحدود في الذاكرة**: إن شغّلت أكثر من نسخة من الـ API، لكل نسخة عدّاداتها
+  الخاصة. إما نسخة واحدة، أو انقل `rateLimit.js` إلى Redis.
+- **الملفات المرفوعة** لا تُحفظ في نظام ملفات serverless؛ استخدم Volume أو S3.
+- **روابط الصور النسبية** (`/api/uploads/...`) تُحل تلقائياً على دومين الـ API
+  عبر `assetUrl()` في الواجهة عند ضبط `VITE_API_URL` كرابط كامل.
+- **CORS**: أضف كل الدومينات (بما فيها `www` ومعاينات Vercel) مفصولة بفاصلة.
+- **خطة مجانية**: الخدمات المجانية تنام بعد خمول — أول طلب بعد النوم يكون بطيئاً.
 
 ## قائمة تحقق قبل الإطلاق
 

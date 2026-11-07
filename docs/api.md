@@ -139,6 +139,53 @@
 | `GET /api/requests?status=` | كل الفريق | القائمة مع العقار/العميل |
 | `PUT /api/requests/:id` | ADMIN/MANAGER/AGENT | `{ status?, clientId? }` |
 
+## رفع الصور 🔒 `ADMIN|MANAGER|AGENT`
+
+### `POST /api/uploads`
+`multipart/form-data` بحقل واحد اسمه `file`.
+
+```bash
+curl -X POST http://localhost:4000/api/uploads \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@apartment.jpg;type=image/jpeg"
+```
+
+```json
+{
+  "file": {
+    "url": "/api/uploads/2820b148-dac5-41c5-a57c-a8b39e3dcae1.jpg",
+    "filename": "2820b148-dac5-41c5-a57c-a8b39e3dcae1.jpg",
+    "mime": "image/jpeg",
+    "size": 184320
+  }
+}
+```
+
+| القيد | القيمة |
+|---|---|
+| الأنواع المسموحة | JPEG، PNG، WebP (يُتحقق منها ببصمة الملف لا بالامتداد) |
+| أقصى حجم | 5MB (`MAX_UPLOAD_MB`) |
+| الحد | 60 عملية رفع / 10 دقائق |
+| التخزين | `UPLOAD_DIR` (افتراضي `backend/uploads`) |
+
+بعد الرفع ضع الرابط في `images` عند إنشاء/تعديل العقار:
+
+```json
+{ "images": ["/api/uploads/2820b148-….jpg"] }
+```
+
+يمكن خلط الروابط المحلية (الناتجة من الرفع) مع روابط خارجية (`https://…`) في
+نفس المصفوفة: مخطط العقار يقبل `https://…` أو مساراً بالصيغة
+`/api/uploads/<uuid>.<ext>` ويرفض أي شيء آخر.
+
+### `GET /api/uploads/:filename` — عام
+يعيد الصورة مع `Cache-Control: immutable`. أسماء الملفات مقيّدة بنمط UUID
+آمن، ومحاولات تجاوز المسار تُرفض بـ 404.
+
+> للإنتاج على منصات بلا قرص دائم (Vercel / بعض إعدادات Railway) استخدم
+> تخزيناً كائناً (S3/Cloudinary) وبدّل `src/routes/uploads.routes.js` فقط —
+> الواجهة تستخدم الرابط العائد كما هو.
+
 ## المستخدمون 🔒 `ADMIN`
 
 | المسار | الوصف |

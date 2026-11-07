@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
+import { assetUrl } from "../api/client";
 
 function formatPrice(price, currency) {
   return new Intl.NumberFormat("ar-EG").format(price) + " " + currency;
 }
 
 export default function PropertyCard({ property }) {
-  const image = property.images?.[0]?.url;
+  const image = assetUrl(property.images?.[0]?.url);
   return (
     <Link
       to={`/properties/${property.id}`}

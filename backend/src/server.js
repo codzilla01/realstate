@@ -21,6 +21,7 @@ import requestsRoutes from "./routes/requests.routes.js";
 import usersRoutes from "./routes/users.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
+import uploadsRoutes from "./routes/uploads.routes.js";
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use("/api/requests", requestsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/uploads", uploadsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

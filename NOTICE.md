@@ -16,6 +16,7 @@
 | morgan | MIT | سجلات الطلبات |
 | dotenv | BSD-2-Clause | متغيرات البيئة |
 | express-async-errors | ISC | تمرير أخطاء async إلى معالج الأخطاء |
+| multer | MIT | استقبال صور العقارات (multipart) |
 
 ## Frontend (`frontend/package.json`)
 

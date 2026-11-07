@@ -5,6 +5,18 @@ import axios from "axios";
 // Override with VITE_API_URL when the API lives on another domain.
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
+// When the API lives on another origin (Vercel frontend + Railway API), the
+// paths returned by /api/uploads are relative to that API, not to the page.
+const API_ORIGIN_WITH_PATH = /^https?:\/\//i.test(API_URL) ? API_URL.replace(/\/api\/?$/, "") : "";
+
+/** Turns "/api/uploads/x.png" into an absolute URL when the API is remote. */
+export function assetUrl(url) {
+  if (!url) return url;
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (API_ORIGIN_WITH_PATH && url.startsWith("/")) return `${API_ORIGIN_WITH_PATH}${url}`;
+  return url;
+}
+
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 20_000,

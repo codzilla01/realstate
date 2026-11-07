@@ -118,6 +118,14 @@ router.get("/:id", optionalAuth, async (req, res) => {
 });
 
 // ── Admin: create/update/delete ──────────────────────────────────────────
+// Accepts either an absolute http(s) URL or a path returned by POST /api/uploads.
+const imageRef = z.string().refine(
+  (value) =>
+    /^https?:\/\//i.test(value) ||
+    /^\/api\/uploads\/[A-Za-z0-9_-]{8,64}\.(jpg|jpeg|png|webp)$/i.test(value),
+  { message: "Image must be an http(s) URL or an /api/uploads/... path" }
+);
+
 const propertySchema = z.object({
   title: z.string().min(2).max(200),
   titleAr: z.string().max(200).optional(),
@@ -138,7 +146,7 @@ const propertySchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
   featured: z.boolean().optional(),
   agentId: z.string().optional(),
-  images: z.array(z.string().url()).max(20).optional(),
+  images: z.array(imageRef).max(20).optional(),
 });
 
 const canManage = [requireAuth, requireStaff];

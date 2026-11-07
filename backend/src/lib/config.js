@@ -48,4 +48,9 @@ export const config = {
   allowPublicRegistration:
     !isProduction && process.env.ALLOW_PUBLIC_REGISTRATION === "true",
   logRequests: process.env.LOG_REQUESTS !== "false",
+  // Image uploads: stored on disk and served from /api/uploads/:filename so the
+  // same nginx / PaaS proxy rule keeps working. Swap this module for S3 or
+  // Cloudinary later without touching the rest of the API.
+  uploadDir: process.env.UPLOAD_DIR || "uploads",
+  maxUploadMb: Number(process.env.MAX_UPLOAD_MB || 5),
 };

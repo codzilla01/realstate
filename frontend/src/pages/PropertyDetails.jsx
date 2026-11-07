@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { api } from "../api/client";
+import { api, assetUrl } from "../api/client";
 import PropertyMap from "../components/PropertyMap";
 
 export default function PropertyDetails() {
   const { id } = useParams();
   const [property, setProperty] = useState(null);
+  const [activeImage, setActiveImage] = useState(0);
   const [form, setForm] = useState({ name: "", phone: "", email: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get(`/properties/${id}`).then(({ data }) => setProperty(data.property));
+    api
+      .get(`/properties/${id}`)
+      .then(({ data }) => {
+        setProperty(data.property);
+        setActiveImage(0);
+      })
+      .catch(() => setProperty(null));
   }, [id]);
 
   async function handleSubmit(e) {
@@ -29,9 +36,35 @@ export default function PropertyDetails() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 space-y-8">
-      <div className="aspect-video rounded-xl overflow-hidden bg-ink-800">
-        {property.images?.[0]?.url && (
-          <img src={property.images[0].url} alt="" className="h-full w-full object-cover" />
+      <div className="space-y-3">
+        <div className="aspect-video rounded-xl overflow-hidden bg-ink-800">
+          {property.images?.[activeImage]?.url || property.images?.[0]?.url ? (
+            <img
+              src={assetUrl(property.images[activeImage]?.url || property.images[0].url)}
+              alt={property.titleAr || property.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-white/30 text-sm">
+              لا توجد صورة
+            </div>
+          )}
+        </div>
+        {property.images?.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {property.images.map((image, index) => (
+              <button
+                key={image.id || image.url}
+                type="button"
+                onClick={() => setActiveImage(index)}
+                className={`h-16 w-24 shrink-0 overflow-hidden rounded-md border transition-colors ${
+                  index === activeImage ? "border-gold" : "border-white/10 hover:border-white/30"
+                }`}
+              >
+                <img src={assetUrl(image.url)} alt="" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
