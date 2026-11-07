@@ -143,6 +143,7 @@ docker compose up --build
 | `npm run db:setup` | هجرة + بيانات تجريبية |
 | `npm run build` | بناء الواجهة للإنتاج |
 | `npm test` | اختبارات الوحدة (node:test) |
+| `node scripts/screenshots.mjs` | لقطات شاشة تسويقية تلقائية (يتطلب Playwright) |
 
 داخل `backend/`: `prisma:generate`, `prisma:migrate`, `prisma:deploy`, `prisma:seed`, `prisma:studio`.
 
@@ -173,6 +174,9 @@ docker compose up --build
 | [docs/demo.md](docs/demo.md) | النسخة التجريبية بدون قاعدة بيانات |
 | [docs/roadmap.md](docs/roadmap.md) | التوسعات المقترحة وتقديراتها |
 | [docs/sales-kit.md](docs/sales-kit.md) | **حزمة البيع:** العرض، الجمهور، التسعير، قائمة التسليم |
+| [docs/one-pager.html](docs/one-pager.html) | عرض تسويقي من صفحتين (A4) جاهز للطباعة/PDF |
+| [docs/sales-agreement-template.md](docs/sales-agreement-template.md) | نموذج اتفاقية بيع وانتقال ملكية قابل للتعديل |
+| [docs/handover-checklist.md](docs/handover-checklist.md) | قائمة تسليم المشروع للمشتري |
 | [CHANGELOG.md](CHANGELOG.md) | سجل النسخ |
 
 ---

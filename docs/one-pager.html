@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>عرض تعريفي — منصة عقارية + CRM</title>
+<style>
+  :root {
+    --gold: #b8912f;
+    --gold-light: #e6cf8b;
+    --ink: #14161c;
+    --muted: #5b6070;
+    --line: #e6e3da;
+    --bg: #fbfaf7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #ece9e1; }
+  body {
+    font-family: "Tajawal", "Segoe UI", Tahoma, "Noto Naskh Arabic", sans-serif;
+    color: var(--ink);
+    line-height: 1.75;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    background: var(--bg);
+    padding: 16mm 15mm;
+    box-shadow: 0 8px 30px rgba(0,0,0,.12);
+    position: relative;
+  }
+  header.cover {
+    background: linear-gradient(135deg, #0b0c10 0%, #1b1f2a 100%);
+    color: #fff;
+    border-radius: 10px;
+    padding: 22px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  header.cover h1 { margin: 0 0 6px; font-size: 26px; color: var(--gold-light); }
+  header.cover p { margin: 0; font-size: 13px; color: #cfd3dd; max-width: 120mm; }
+  .badge {
+    border: 1px solid rgba(230,207,139,.5);
+    color: var(--gold-light);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  h2 {
+    font-size: 16px;
+    margin: 22px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--gold-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2::before { content: ""; width: 8px; height: 8px; background: var(--gold); border-radius: 2px; }
+  p, li { font-size: 12.5px; color: #2b2f3a; }
+  .lead { font-size: 13.5px; color: #333; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .grid.three { grid-template-columns: repeat(3, 1fr); }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #fff;
+  }
+  .card h3 { margin: 0 0 4px; font-size: 13px; color: var(--ink); }
+  .card p { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+  ul.checks { list-style: none; padding: 0; margin: 0; }
+  ul.checks li { font-size: 12.5px; padding-right: 22px; position: relative; margin-bottom: 4px; }
+  ul.checks li::before {
+    content: "✓"; position: absolute; right: 0; top: 0;
+    color: var(--gold); font-weight: 700;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chip {
+    font-size: 11px; border: 1px solid var(--line); background: #fff;
+    border-radius: 999px; padding: 3px 10px; color: #444;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+  th { background: #f2efe7; color: #333; font-weight: 700; }
+  td.price { color: var(--gold); font-weight: 700; white-space: nowrap; }
+  .demo {
+    background: #0b0c10; color: #fff; border-radius: 8px; padding: 12px 16px;
+    display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 12px;
+  }
+  .demo b { color: var(--gold-light); }
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .shot {
+    border: 1.5px dashed #cfc7b4; border-radius: 8px; height: 46mm;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    color: #9a927f; font-size: 11.5px; background: #fff; gap: 4px;
+  }
+  .shot span { font-size: 20px; }
+  footer {
+    margin-top: 20px; border-top: 1px solid var(--line); padding-top: 10px;
+    display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted);
+    flex-wrap: wrap; gap: 8px;
+  }
+  footer b { color: var(--ink); }
+  .note { font-size: 10.5px; color: #8a8375; margin-top: 6px; }
+
+  @page { size: A4; margin: 0; }
+  @media print {
+    html, body { background: #fff; }
+    .page { margin: 0; box-shadow: none; width: auto; min-height: 0; padding: 12mm; }
+    .page + .page { page-break-before: always; }
+  }
+</style>
+</head>
+<body>
+
+<!-- صفحة 1 -->
+<section class="page">
+  <header class="cover">
+    <div>
+      <h1>منصة عقارية متكاملة + CRM</h1>
+      <p>
+        موقع عقارات عربي احترافي ولوحة تحكم كاملة لإدارة العقارات والعملاء والعقود
+        والطلبات والتقارير — جاهزة للربط باسم مكتبك أو إعادة بيعها لعملائك.
+      </p>
+    </div>
+    <span class="badge">عرض تعريفي · [التاريخ]</span>
+  </header>
+
+  <h2>المشكلة التي يحلّها</h2>
+  <p class="lead">
+    مكاتب العقارات تدير العقارات في ملفات Excel، والطلبات في WhatsApp، والعقود
+    في أوراق. النتيجة: عقارات مكررة، عملاء مفقودون، وإيرادات غير محسوبة.
+    هذه المنصة تجمعها في مكان واحد: موقع يجذب الزائر، ولوحة تحوّل الطلب إلى عقد.
+  </p>
+
+  <h2>الميزات الأساسية</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>موقع عام عربي (RTL)</h3>
+      <p>واجهة داكنة/ذهبية، بحث وتصفية (نوع، غرض، سعر، مدينة)، صفحة تفاصيل بخريطة وطلب معاينة.</p>
+    </div>
+    <div class="card">
+      <h3>إدارة العقارات</h3>
+      <p>صور متعددة، إحداثيات، حالات (متاح/محجوز/مباع/مؤجر/مسودة)، وتمييز «مميز».</p>
+    </div>
+    <div class="card">
+      <h3>CRM للعملاء</h3>
+      <p>ملفات عملاء بملاحظات، ربط الطلبات والعقود بالعميل، وبحث سريع بالاسم أو الهاتف.</p>
+    </div>
+    <div class="card">
+      <h3>العقود والعمولات</h3>
+      <p>عقود بيع/إيجار مع نسبة عمولة وتواريخ ودورة حالة، وحساب الإيرادات تلقائياً.</p>
+    </div>
+    <div class="card">
+      <h3>الطلبات والإشعارات</h3>
+      <p>كل طلب من الموقع يظهر فوراً في اللوحة مع تنبيه داخلي لفريق الإدارة.</p>
+    </div>
+    <div class="card">
+      <h3>تقارير ورسوم بيانية</h3>
+      <p>مؤشرات فورية + توزيع العقارات + إيرادات العقود المكتملة.</p>
+    </div>
+  </div>
+
+  <h2>الأمان والصلاحيات</h2>
+  <div class="grid">
+    <div>
+      <ul class="checks">
+        <li>أربعة أدوار: مدير، مشرف، وكيل، مشاهد (قراءة فقط)</li>
+        <li>كلمات مرور مشفرة bcrypt + رموز JWT</li>
+        <li>دخول برمز تحقق OTP مع حد للمحاولات</li>
+      </ul>
+    </div>
+    <div>
+      <ul class="checks">
+        <li>حدود طلبات (Rate limiting) على الدخول والنماذج</li>
+        <li>المسودات مخفية عن الزوار</li>
+        <li>تسجيل الحسابات من الإدارة فقط</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>التقنيات</h2>
+  <div class="chips">
+    <span class="chip">React 19</span>
+    <span class="chip">Vite</span>
+    <span class="chip">Tailwind CSS</span>
+    <span class="chip">Leaflet / OpenStreetMap</span>
+    <span class="chip">Recharts</span>
+    <span class="chip">Node.js + Express</span>
+    <span class="chip">Prisma ORM</span>
+    <span class="chip">MySQL 8</span>
+    <span class="chip">JWT + bcrypt</span>
+    <span class="chip">Docker + nginx</span>
+  </div>
+
+  <h2>معاينة فورية</h2>
+  <div class="demo">
+    <span>الموقع: <b>[رابط المعاينة]</b></span>
+    <span>لوحة التحكم: <b>[رابط]/admin/login</b></span>
+    <span>مدير: <b>201000000001 / admin1234</b></span>
+    <span>وكيل: <b>201000000002 / agent1234</b></span>
+    <span>مشاهد: <b>201000000003 / viewer1234</b></span>
+  </div>
+  <p class="note">النسخة التجريبية تعمل ببيانات وهمية في الذاكرة — لا تحتاج قاعدة بيانات.</p>
+
+  <footer>
+    <span><b>[اسمك / شركتك]</b> — [هاتف] — [بريد]</span>
+    <span>عرض ساري حتى [التاريخ]</span>
+  </footer>
+</section>
+
+<!-- صفحة 2 -->
+<section class="page">
+  <h2>ما يصل للمشتري</h2>
+  <div class="grid">
+    <div>
+      <ul class="checks">
+        <li>الشيفرة المصدرية الكاملة (واجهة + خادم)</li>
+        <li>مخطط قاعدة البيانات + بيانات تجريبية</li>
+        <li>لوحة تحكم وموقع عام جاهزان</li>
+        <li>نشر Docker بأمر واحد + وصفة VPS</li>
+      </ul>
+    </div>
+    <div>
+      <ul class="checks">
+        <li>توثيق عربي: API، قاعدة البيانات، دليل الاستخدام</li>
+        <li>قائمة تحقق أمني قبل الإطلاق</li>
+        <li>اختبارات وحدة جاهزة</li>
+        <li>رخصة تجارية قابلة للانتقال</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>لماذا توفّر وقتاً ومالاً؟</h2>
+  <table>
+    <thead>
+      <tr><th>البند</th><th>البناء من الصفر</th><th>هذه المنصة</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>مدة التنفيذ</td><td>4–6 أسابيع</td><td>جاهزة اليوم</td></tr>
+      <tr><td>التكلفة التقديرية</td><td>[40–90 ألف جنيه]</td><td>[سعر الحزمة]</td></tr>
+      <tr><td>التوثيق والاختبارات</td><td>غالباً مؤجلة</td><td>مضمّنة</td></tr>
+      <tr><td>المخاطرة</td><td>متطلبات وتأخير</td><td>منتج يعمل ومُجرَّب</td></tr>
+    </tbody>
+  </table>
+
+  <h2>الباقات</h2>
+  <table>
+    <thead>
+      <tr><th>الباقة</th><th>المحتوى</th><th>السعر</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>الأساسية</td>
+        <td>الكود + الوثائق + دعم تركيب أولي</td>
+        <td class="price">[السعر]</td>
+      </tr>
+      <tr>
+        <td>جاهز للنشر</td>
+        <td>+ نشر على استضافتك + هوية وألوان + بياناتك الحقيقية</td>
+        <td class="price">[السعر]</td>
+      </tr>
+      <tr>
+        <td>الأعمال الكاملة</td>
+        <td>+ ربط SMS + رفع صور سحابي + 30 يوم دعم</td>
+        <td class="price">[السعر]</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">إضافات منفصلة: نسخة إنجليزية، تصدير Excel، تقارير متقدمة، فيديو تعريفي.</p>
+
+  <h2>لقطات من المنتج</h2>
+  <div class="shots">
+    <div class="shot"><span>🖼️</span> الصفحة الرئيسية</div>
+    <div class="shot"><span>🖼️</span> صفحة العقارات</div>
+    <div class="shot"><span>🖼️</span> لوحة المعلومات</div>
+    <div class="shot"><span>🖼️</span> إدارة العقارات</div>
+  </div>
+  <p class="note">
+    استبدل المربعات بلقطات حقيقية (1440×900) — استخدم
+    <code>node scripts/screenshots.mjs</code> لتوليدها تلقائياً.
+  </p>
+
+  <h2>طريقة العمل</h2>
+  <ul class="checks">
+    <li>1) معاينة مباشرة أو اجتماع 20 دقيقة لعرض النظام.</li>
+    <li>2) اختيار الباقة وتوقيع الاتفاقية وسداد الدفعة الأولى.</li>
+    <li>3) التسليم داخل [3–7] أيام عمل مع تشغيل تجريبي.</li>
+    <li>4) تخصيص الهوية والبيانات، ثم فترة دعم [15–30] يوماً.</li>
+  </ul>
+
+  <footer>
+    <span><b>للاستفسار والشراء:</b> [هاتف / واتساب] — [بريد]</span>
+    <span>[اسمك / شركتك]</span>
+  </footer>
+</section>
+
+</body>
+</html>
