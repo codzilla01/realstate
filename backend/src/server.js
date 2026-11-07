@@ -1,7 +1,17 @@
 import "dotenv/config";
+// Makes rejected promises inside async route handlers reach the error
+// middleware instead of leaving the request hanging (Express 4 behaviour).
+import "express-async-errors";
+
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+
+import { config } from "./lib/config.js";
+import { prisma } from "./lib/prisma.js";
+import { securityHeaders } from "./middleware/security.js";
+import { errorHandler, notFound } from "./middleware/error.js";
+import { rateLimit } from "./middleware/rateLimit.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import propertiesRoutes from "./routes/properties.routes.js";
@@ -14,11 +24,48 @@ import reportsRoutes from "./routes/reports.routes.js";
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
-app.use(express.json({ limit: "5mb" }));
-app.use(morgan("dev"));
+// Behind nginx / a cloud proxy we need the real client IP for rate limiting.
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
 
-app.get("/api/health", (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+app.use(securityHeaders);
+app.use(
+  cors({
+    origin: config.corsOrigins,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86_400,
+  })
+);
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
+
+if (config.logRequests) {
+  app.use(morgan(config.isProduction ? "combined" : "dev"));
+}
+
+// A coarse global limit protects the whole API from accidental floods; the
+// sensitive endpoints have stricter limits of their own.
+app.use("/api", rateLimit({ windowMs: 60_000, max: 300 }));
+
+app.get("/api/health", async (req, res) => {
+  const startedAt = Date.now();
+  let database = "up";
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    database = "down";
+  }
+  const healthy = database === "up";
+  res.status(healthy ? 200 : 503).json({
+    ok: healthy,
+    env: config.nodeEnv,
+    database,
+    uptimeSeconds: Math.round(process.uptime()),
+    latencyMs: Date.now() - startedAt,
+    ts: new Date().toISOString(),
+  });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/properties", propertiesRoutes);
@@ -29,15 +76,29 @@ app.use("/api/users", usersRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/reports", reportsRoutes);
 
-app.use((req, res) => res.status(404).json({ error: "Not found" }));
+app.use(notFound);
+app.use(errorHandler);
 
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+const server = app.listen(config.port, "0.0.0.0", () => {
+  console.log(
+    `[api] listening on http://localhost:${config.port} (env=${config.nodeEnv})`
+  );
 });
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`API server listening on http://localhost:${PORT}`);
-});
+async function shutdown(signal) {
+  console.log(`[api] ${signal} received — shutting down gracefully`);
+  server.close(async () => {
+    try {
+      await prisma.$disconnect();
+    } finally {
+      process.exit(0);
+    }
+  });
+  // Do not hang forever on stuck connections.
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+export { app };

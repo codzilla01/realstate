@@ -1,12 +1,10 @@
 import jwt from "jsonwebtoken";
-
-const SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-const EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+import { config } from "./config.js";
 
 export function signToken(payload) {
-  return jwt.sign(payload, SECRET, { expiresIn: EXPIRES_IN });
+  return jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
 }
 
 export function verifyToken(token) {
-  return jwt.verify(token, SECRET);
+  return jwt.verify(token, config.jwtSecret);
 }

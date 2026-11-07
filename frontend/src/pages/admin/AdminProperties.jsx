@@ -27,7 +27,7 @@ export default function AdminProperties() {
   const [error, setError] = useState("");
 
   function load() {
-    api.get("/properties", { params: { pageSize: 100, status: "" } }).then(({ data }) => setItems(data.items));
+    api.get("/properties", { params: { pageSize: 100, includeDrafts: "true" } }).then(({ data }) => setItems(data.items));
   }
 
   useEffect(() => {

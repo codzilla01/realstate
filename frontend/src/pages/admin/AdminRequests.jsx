@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import DataTable from "../../components/DataTable";
+import { useAuth } from "../../context/AuthContext";
 
 const STATUS_LABELS = { NEW: "جديد", CONTACTED: "تم التواصل", IN_PROGRESS: "قيد المعالجة", CLOSED: "مغلق" };
 
 export default function AdminRequests() {
+  const { canWrite } = useAuth();
   const [items, setItems] = useState([]);
 
   function load() {
@@ -29,17 +31,21 @@ export default function AdminRequests() {
           { key: "status", label: "الحالة", render: (r) => STATUS_LABELS[r.status] },
         ]}
         rows={items}
-        actions={(row) => (
-          <select
-            value={row.status}
-            onChange={(e) => updateStatus(row.id, e.target.value)}
-            className="rounded-md bg-ink-900 border border-white/10 px-2 py-1 text-xs"
-          >
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        )}
+        actions={
+          canWrite
+            ? (row) => (
+                <select
+                  value={row.status}
+                  onChange={(e) => updateStatus(row.id, e.target.value)}
+                  className="rounded-md bg-ink-900 border border-white/10 px-2 py-1 text-xs"
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              )
+            : undefined
+        }
       />
     </div>
   );

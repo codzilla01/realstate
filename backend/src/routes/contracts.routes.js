@@ -2,14 +2,17 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("ADMIN", "MANAGER", "AGENT"));
+// Read access for the whole staff, writes are checked per route.
+router.use(requireAuth, requireRole("ADMIN", "MANAGER", "AGENT", "VIEWER"));
 
 router.get("/", async (req, res) => {
   const { status } = req.query;
-  const where = status ? { status: String(status).toUpperCase() } : {};
+  const statuses = ["PENDING", "ACTIVE", "COMPLETED", "CANCELLED"];
+  const requested = String(status || "").toUpperCase();
+  const where = statuses.includes(requested) ? { status: requested } : {};
   const contracts = await prisma.contract.findMany({
     where,
     include: { property: true, client: true, agent: { select: { id: true, name: true } } },
@@ -31,7 +34,7 @@ const contractSchema = z.object({
   notes: z.string().optional(),
 });
 
-router.post("/", validate(contractSchema), async (req, res) => {
+router.post("/", requireStaff, validate(contractSchema), async (req, res) => {
   const contract = await prisma.contract.create({
     data: {
       ...req.body,
@@ -43,7 +46,7 @@ router.post("/", validate(contractSchema), async (req, res) => {
   res.status(201).json({ contract });
 });
 
-router.put("/:id", validate(contractSchema.partial()), async (req, res) => {
+router.put("/:id", requireStaff, validate(contractSchema.partial()), async (req, res) => {
   const { startDate, endDate, ...rest } = req.body;
   const contract = await prisma.contract.update({
     where: { id: req.params.id },

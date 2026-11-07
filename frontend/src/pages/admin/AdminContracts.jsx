@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import DataTable from "../../components/DataTable";
+import { useAuth } from "../../context/AuthContext";
 
 export default function AdminContracts() {
+  const { canWrite } = useAuth();
   const [items, setItems] = useState([]);
   const [properties, setProperties] = useState([]);
   const [clients, setClients] = useState([]);
@@ -15,7 +17,7 @@ export default function AdminContracts() {
 
   useEffect(() => {
     load();
-    api.get("/properties", { params: { pageSize: 100, status: "" } }).then(({ data }) => setProperties(data.items));
+    api.get("/properties", { params: { pageSize: 100, includeDrafts: "true" } }).then(({ data }) => setProperties(data.items));
     api.get("/clients").then(({ data }) => setClients(data.items));
   }, []);
 
@@ -40,9 +42,11 @@ export default function AdminContracts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">العقود</h1>
-        <button onClick={() => setShowForm((s) => !s)} className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink-900 hover:bg-gold-light">
-          + عقد جديد
-        </button>
+        {canWrite && (
+          <button onClick={() => setShowForm((s) => !s)} className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink-900 hover:bg-gold-light">
+            + عقد جديد
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -81,18 +85,22 @@ export default function AdminContracts() {
           { key: "status", label: "الحالة" },
         ]}
         rows={items}
-        actions={(row) => (
-          <select
-            value={row.status}
-            onChange={(e) => updateStatus(row.id, e.target.value)}
-            className="rounded-md bg-ink-900 border border-white/10 px-2 py-1 text-xs"
-          >
-            <option value="PENDING">معلق</option>
-            <option value="ACTIVE">نشط</option>
-            <option value="COMPLETED">مكتمل</option>
-            <option value="CANCELLED">ملغى</option>
-          </select>
-        )}
+        actions={
+          canWrite
+            ? (row) => (
+                <select
+                  value={row.status}
+                  onChange={(e) => updateStatus(row.id, e.target.value)}
+                  className="rounded-md bg-ink-900 border border-white/10 px-2 py-1 text-xs"
+                >
+                  <option value="PENDING">معلق</option>
+                  <option value="ACTIVE">نشط</option>
+                  <option value="COMPLETED">مكتمل</option>
+                  <option value="CANCELLED">ملغى</option>
+                </select>
+              )
+            : undefined
+        }
       />
     </div>
   );

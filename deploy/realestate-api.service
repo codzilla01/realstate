@@ -1,0 +1,29 @@
+# systemd unit for a VPS install (no Docker)
+#
+#   sudo cp deploy/realestate-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now realestate-api
+#   sudo journalctl -u realestate-api -f
+#
+# Adjust User/WorkingDirectory/EnvironmentFile to match your server.
+
+[Unit]
+Description=Real Estate API (Express + Prisma)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=realestate
+WorkingDirectory=/srv/realestate/backend
+Environment=NODE_ENV=production
+EnvironmentFile=/srv/realestate/backend/.env
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/srv/realestate/backend
+
+[Install]
+WantedBy=multi-user.target

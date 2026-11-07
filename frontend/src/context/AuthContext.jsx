@@ -1,34 +1,20 @@
-import { createContext, useContext, useState, useCallback } from "react";
-import { api } from "../api/client";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { api, setUnauthorizedHandler } from "../api/client";
 
 const AuthContext = createContext(null);
 
+const WRITE_ROLES = ["ADMIN", "MANAGER", "AGENT"];
+const REPORT_ROLES = ["ADMIN", "MANAGER"];
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   });
-
-  const loginWithPassword = useCallback(async (phone, password) => {
-    const { data } = await api.post("/auth/login", { phone, password });
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
-  }, []);
-
-  const requestOtp = useCallback(async (phone) => {
-    const { data } = await api.post("/auth/otp/request", { phone });
-    return data;
-  }, []);
-
-  const verifyOtp = useCallback(async (phone, code) => {
-    const { data } = await api.post("/auth/otp/verify", { phone, code });
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
-  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem("token");
@@ -36,11 +22,54 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, loginWithPassword, requestOtp, verifyOtp, logout }}>
-      {children}
-    </AuthContext.Provider>
+  // A 401 from any request clears the session and returns to the login screen.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+  }, []);
+
+  const persist = useCallback((data) => {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  }, []);
+
+  const loginWithPassword = useCallback(
+    async (phone, password) => {
+      const { data } = await api.post("/auth/login", { phone, password });
+      return persist(data);
+    },
+    [persist]
   );
+
+  const requestOtp = useCallback(async (phone) => {
+    const { data } = await api.post("/auth/otp/request", { phone });
+    return data;
+  }, []);
+
+  const verifyOtp = useCallback(
+    async (phone, code) => {
+      const { data } = await api.post("/auth/otp/verify", { phone, code });
+      return persist(data);
+    },
+    [persist]
+  );
+
+  const permissions = useMemo(
+    () => ({
+      canWrite: WRITE_ROLES.includes(user?.role),
+      canSeeReports: REPORT_ROLES.includes(user?.role),
+      isAdmin: user?.role === "ADMIN",
+    }),
+    [user]
+  );
+
+  const value = useMemo(
+    () => ({ user, loginWithPassword, requestOtp, verifyOtp, logout, ...permissions }),
+    [user, loginWithPassword, requestOtp, verifyOtp, logout, permissions]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

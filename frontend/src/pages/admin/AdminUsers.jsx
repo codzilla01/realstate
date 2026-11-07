@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import DataTable from "../../components/DataTable";
-import { useAuth } from "../../context/AuthContext";
 
 const ROLE_LABELS = { ADMIN: "مدير", MANAGER: "مشرف", AGENT: "وكيل", VIEWER: "مشاهد" };
 
 export default function AdminUsers() {
-  const { user: currentUser } = useAuth();
   const [items, setItems] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", role: "AGENT" });
@@ -21,7 +19,7 @@ export default function AdminUsers() {
     e.preventDefault();
     setError("");
     try {
-      await api.post("/auth/register", form);
+      await api.post("/users", form);
       setForm({ name: "", phone: "", email: "", password: "", role: "AGENT" });
       setShowForm(false);
       load();
@@ -31,12 +29,13 @@ export default function AdminUsers() {
   }
 
   async function toggleActive(u) {
-    await api.put(`/users/${u.id}`, { isActive: !u.isActive });
-    load();
-  }
-
-  if (currentUser?.role !== "ADMIN") {
-    return <p className="text-white/50">هذه الصفحة متاحة للمدير فقط.</p>;
+    setError("");
+    try {
+      await api.put(`/users/${u.id}`, { isActive: !u.isActive });
+      load();
+    } catch (err) {
+      setError(err?.response?.data?.error || "تعذر تحديث حالة المستخدم.");
+    }
   }
 
   return (

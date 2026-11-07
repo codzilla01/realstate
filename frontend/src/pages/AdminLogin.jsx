@@ -2,6 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const HOME_BY_ROLE = {
+  ADMIN: "/admin",
+  MANAGER: "/admin",
+  AGENT: "/admin/properties",
+  VIEWER: "/admin/clients",
+};
+
 export default function AdminLogin() {
   const { loginWithPassword, requestOtp, verifyOtp } = useAuth();
   const navigate = useNavigate();
@@ -20,8 +27,8 @@ export default function AdminLogin() {
     setError("");
     setLoading(true);
     try {
-      await loginWithPassword(phone, password);
-      navigate("/admin");
+      const user = await loginWithPassword(phone, password);
+      navigate(HOME_BY_ROLE[user.role] || "/admin");
     } catch {
       setError("رقم الهاتف أو كلمة المرور غير صحيحة.");
     } finally {
@@ -49,8 +56,8 @@ export default function AdminLogin() {
     setError("");
     setLoading(true);
     try {
-      await verifyOtp(phone, code);
-      navigate("/admin");
+      const user = await verifyOtp(phone, code);
+      navigate(HOME_BY_ROLE[user.role] || "/admin");
     } catch {
       setError("رمز التحقق غير صحيح أو منتهي الصلاحية.");
     } finally {

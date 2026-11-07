@@ -1,16 +1,20 @@
-# React + Vite
+# الواجهة الأمامية — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+تطبيق React 19 + Vite يحتوي الموقع العام ولوحة التحكم.
 
-Currently, two official plugins are available:
+- التوثيق الكامل: [../README.md](../README.md)
+- دليل الـ API: [../docs/api.md](../docs/api.md)
+- دليل لوحة التحكم: [../docs/admin-guide.md](../docs/admin-guide.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## أوامر سريعة
 
-## React Compiler
+```bash
+npm install
+npm run dev     # http://localhost:5173 — يوكّل /api إلى localhost:4000
+npm run build   # بناء dist/
+npm run preview # معاينة البناء
+npm run lint    # oxlint
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+متغير بيئة واحد اختياري: `VITE_API_URL` (اتركه فارغاً للاستخدام `/api` نفس
+الأصل — وهو المطلوب مع nginx أو Docker).

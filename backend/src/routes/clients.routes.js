@@ -2,10 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("ADMIN", "MANAGER", "AGENT"));
+// Everyone on staff (including read-only VIEWER) can browse clients.
+router.use(requireAuth, requireRole("ADMIN", "MANAGER", "AGENT", "VIEWER"));
 
 router.get("/", async (req, res) => {
   const { q } = req.query;
@@ -32,12 +33,12 @@ const clientSchema = z.object({
   notes: z.string().optional(),
 });
 
-router.post("/", validate(clientSchema), async (req, res) => {
+router.post("/", requireStaff, validate(clientSchema), async (req, res) => {
   const client = await prisma.client.create({ data: req.body });
   res.status(201).json({ client });
 });
 
-router.put("/:id", validate(clientSchema.partial()), async (req, res) => {
+router.put("/:id", requireStaff, validate(clientSchema.partial()), async (req, res) => {
   const client = await prisma.client.update({ where: { id: req.params.id }, data: req.body });
   res.json({ client });
 });

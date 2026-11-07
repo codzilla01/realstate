@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import DataTable from "../../components/DataTable";
+import { useAuth } from "../../context/AuthContext";
 
 export default function AdminClients() {
+  const { canWrite } = useAuth();
   const [items, setItems] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", email: "", notes: "" });
@@ -30,9 +32,11 @@ export default function AdminClients() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">العملاء</h1>
-        <button onClick={() => setShowForm((s) => !s)} className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink-900 hover:bg-gold-light">
-          + إضافة عميل
-        </button>
+        {canWrite && (
+          <button onClick={() => setShowForm((s) => !s)} className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink-900 hover:bg-gold-light">
+            + إضافة عميل
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -55,9 +59,13 @@ export default function AdminClients() {
           { key: "email", label: "البريد" },
         ]}
         rows={items}
-        actions={(row) => (
-          <button onClick={() => handleDelete(row.id)} className="text-red-400 text-xs hover:underline">حذف</button>
-        )}
+        actions={
+          canWrite
+            ? (row) => (
+                <button onClick={() => handleDelete(row.id)} className="text-red-400 text-xs hover:underline">حذف</button>
+              )
+            : undefined
+        }
       />
     </div>
   );

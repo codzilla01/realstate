@@ -76,6 +76,7 @@ model OtpCode {
   purpose   String   @default("LOGIN")
   expiresAt DateTime
   consumed  Boolean  @default(false)
+  attempts  Int      @default(0)
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

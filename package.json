@@ -1,0 +1,22 @@
+{
+  "name": "realestate-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arabic real-estate platform — public listings site + admin CRM (React + Express + Prisma/MySQL)",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "scripts": {
+    "setup": "npm --prefix backend install && npm --prefix frontend install",
+    "demo": "node demo/run-demo.mjs",
+    "dev:api": "npm --prefix backend run dev",
+    "dev:web": "npm --prefix frontend run dev",
+    "db:migrate": "npm --prefix backend run prisma:migrate",
+    "db:seed": "npm --prefix backend run prisma:seed",
+    "db:setup": "npm --prefix backend run prisma:migrate && npm --prefix backend run prisma:seed",
+    "build": "npm --prefix frontend run build",
+    "start:api": "npm --prefix backend start",
+    "test": "npm --prefix backend test"
+  }
+}

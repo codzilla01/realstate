@@ -2,28 +2,64 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { validate } from "../middleware/validate.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { optionalAuth, requireAuth, requireRole, requireStaff } from "../middleware/auth.js";
 
 const router = Router();
 
-// ── Public: list + filter/search properties ──
-router.get("/", async (req, res) => {
+const PURPOSES = ["SALE", "RENT"];
+const TYPES = ["APARTMENT", "VILLA", "OFFICE", "LAND", "SHOP", "BUILDING"];
+const STATUSES = ["AVAILABLE", "RESERVED", "SOLD", "RENTED", "DRAFT"];
+
+function upper(value) {
+  return String(value || "").toUpperCase();
+}
+
+function isStaff(req) {
+  return ["ADMIN", "MANAGER", "AGENT"].includes(req.user?.role);
+}
+
+// ── Public: list + filter/search properties ──────────────────────────────
+router.get("/", optionalAuth, async (req, res) => {
   const {
-    purpose, type, city, minPrice, maxPrice, bedrooms,
-    q, page = "1", pageSize = "12", status,
+    purpose,
+    type,
+    city,
+    minPrice,
+    maxPrice,
+    bedrooms,
+    q,
+    page = "1",
+    pageSize = "12",
+    status,
   } = req.query;
 
+  const requestedStatus = upper(status);
+  const includeDrafts = String(req.query.includeDrafts || "") === "true" && isStaff(req);
+  const statusFilter = includeDrafts
+    ? (STATUSES.includes(requestedStatus) ? requestedStatus : undefined)
+    : STATUSES.includes(requestedStatus) && requestedStatus !== "DRAFT"
+      ? requestedStatus
+      : { not: "DRAFT" };
+
   const where = {
-    ...(purpose ? { purpose: String(purpose).toUpperCase() } : {}),
-    ...(type ? { type: String(type).toUpperCase() } : {}),
+    ...(PURPOSES.includes(upper(purpose)) ? { purpose: upper(purpose) } : {}),
+    ...(TYPES.includes(upper(type)) ? { type: upper(type) } : {}),
     ...(city ? { city: { contains: String(city) } } : {}),
-    ...(bedrooms ? { bedrooms: Number(bedrooms) } : {}),
-    ...(status ? { status: String(status).toUpperCase() } : { status: { not: "DRAFT" } }),
+    ...(bedrooms && Number.isFinite(Number(bedrooms))
+      ? { bedrooms: Number(bedrooms) }
+      : {}),
+    // Drafts are internal: hidden from the public site, visible in the admin
+    // table through `?includeDrafts=true` with a staff token.
+    status: statusFilter,
     ...(minPrice || maxPrice
       ? {
           price: {
-            ...(minPrice ? { gte: Number(minPrice) } : {}),
-            ...(maxPrice ? { lte: Number(maxPrice) } : {}),
+            ...(minPrice && Number.isFinite(Number(minPrice))
+              ? { gte: Number(minPrice) }
+              : {}),
+            ...(maxPrice && Number.isFinite(Number(maxPrice))
+              ? { lte: Number(maxPrice) }
+              : {}),
           },
         }
       : {}),
@@ -32,108 +68,114 @@ router.get("/", async (req, res) => {
           OR: [
             { title: { contains: String(q) } },
             { titleAr: { contains: String(q) } },
+            { description: { contains: String(q) } },
+            { descriptionAr: { contains: String(q) } },
             { address: { contains: String(q) } },
             { district: { contains: String(q) } },
+            { city: { contains: String(q) } },
           ],
         }
       : {}),
   };
 
-  const take = Math.min(Number(pageSize) || 12, 50);
-  const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
+  const take = Math.min(Math.max(Number(pageSize) || 12, 1), 100);
+  const currentPage = Math.max(Number(page) || 1, 1);
+  const skip = (currentPage - 1) * take;
 
   const [items, total] = await Promise.all([
     prisma.property.findMany({
       where,
-      include: { images: true, agent: { select: { id: true, name: true, phone: true } } },
-      orderBy: { createdAt: "desc" },
+      include: { images: { orderBy: { sortOrder: "asc" } }, agent: { select: { id: true, name: true, phone: true } } },
+      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
       take,
       skip,
     }),
     prisma.property.count({ where }),
   ]);
 
-  res.json({ items, total, page: Number(page) || 1, pageSize: take });
+  res.json({
+    items,
+    total,
+    page: currentPage,
+    pageSize: take,
+    totalPages: Math.max(Math.ceil(total / take), 1),
+  });
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   const property = await prisma.property.findUnique({
     where: { id: req.params.id },
-    include: { images: true, agent: { select: { id: true, name: true, phone: true } } },
+    include: {
+      images: { orderBy: { sortOrder: "asc" } },
+      agent: { select: { id: true, name: true, phone: true } },
+    },
   });
-  if (!property) return res.status(404).json({ error: "Property not found" });
+
+  if (!property || (property.status === "DRAFT" && !isStaff(req))) {
+    return res.status(404).json({ error: "Property not found" });
+  }
   res.json({ property });
 });
 
-// ── Admin: create/update/delete ──
+// ── Admin: create/update/delete ──────────────────────────────────────────
 const propertySchema = z.object({
-  title: z.string().min(2),
-  titleAr: z.string().optional(),
-  description: z.string().optional(),
-  descriptionAr: z.string().optional(),
-  purpose: z.enum(["SALE", "RENT"]),
-  type: z.enum(["APARTMENT", "VILLA", "OFFICE", "LAND", "SHOP", "BUILDING"]),
-  status: z.enum(["AVAILABLE", "RESERVED", "SOLD", "RENTED", "DRAFT"]).optional(),
+  title: z.string().min(2).max(200),
+  titleAr: z.string().max(200).optional(),
+  description: z.string().max(5000).optional(),
+  descriptionAr: z.string().max(5000).optional(),
+  purpose: z.enum(PURPOSES),
+  type: z.enum(TYPES),
+  status: z.enum(STATUSES).optional(),
   price: z.number().positive(),
-  currency: z.string().optional(),
+  currency: z.string().max(8).optional(),
   areaSqm: z.number().positive().optional(),
   bedrooms: z.number().int().nonnegative().optional(),
   bathrooms: z.number().int().nonnegative().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  district: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  address: z.string().max(300).optional(),
+  city: z.string().max(120).optional(),
+  district: z.string().max(120).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   featured: z.boolean().optional(),
   agentId: z.string().optional(),
-  images: z.array(z.string().url()).optional(),
+  images: z.array(z.string().url()).max(20).optional(),
 });
 
-router.post(
-  "/",
-  requireAuth,
-  requireRole("ADMIN", "MANAGER", "AGENT"),
-  validate(propertySchema),
-  async (req, res) => {
-    const { images, ...data } = req.body;
-    const property = await prisma.property.create({
-      data: {
-        ...data,
-        images: images?.length
-          ? { create: images.map((url, i) => ({ url, sortOrder: i })) }
-          : undefined,
-      },
-      include: { images: true },
-    });
-    res.status(201).json({ property });
-  }
-);
+const canManage = [requireAuth, requireStaff];
 
-router.put(
-  "/:id",
-  requireAuth,
-  requireRole("ADMIN", "MANAGER", "AGENT"),
-  validate(propertySchema.partial()),
-  async (req, res) => {
-    const { images, ...data } = req.body;
-    const property = await prisma.property.update({
-      where: { id: req.params.id },
-      data: {
-        ...data,
-        ...(images
-          ? {
-              images: {
-                deleteMany: {},
-                create: images.map((url, i) => ({ url, sortOrder: i })),
-              },
-            }
-          : {}),
-      },
-      include: { images: true },
-    });
-    res.json({ property });
-  }
-);
+router.post("/", ...canManage, validate(propertySchema), async (req, res) => {
+  const { images, ...data } = req.body;
+  const property = await prisma.property.create({
+    data: {
+      ...data,
+      images: images?.length
+        ? { create: images.map((url, i) => ({ url, sortOrder: i })) }
+        : undefined,
+    },
+    include: { images: true },
+  });
+  res.status(201).json({ property });
+});
+
+router.put("/:id", ...canManage, validate(propertySchema.partial()), async (req, res) => {
+  const { images, ...data } = req.body;
+  const property = await prisma.property.update({
+    where: { id: req.params.id },
+    data: {
+      ...data,
+      ...(images
+        ? {
+            images: {
+              deleteMany: {},
+              create: images.map((url, i) => ({ url, sortOrder: i })),
+            },
+          }
+        : {}),
+    },
+    include: { images: true },
+  });
+  res.json({ property });
+});
 
 router.delete("/:id", requireAuth, requireRole("ADMIN", "MANAGER"), async (req, res) => {
   await prisma.property.delete({ where: { id: req.params.id } });
