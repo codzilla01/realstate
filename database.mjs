@@ -1,4 +1,5 @@
 import { samples } from './catalog.mjs';
+import { CloudDatabaseError, databaseError } from './cloud-database-errors.mjs';
 
 const schema = [
   'CREATE TABLE IF NOT EXISTS properties (id TEXT PRIMARY KEY, title TEXT NOT NULL, type TEXT NOT NULL, city TEXT NOT NULL, district TEXT NOT NULL, price INTEGER NOT NULL, beds INTEGER NOT NULL, baths INTEGER NOT NULL, area INTEGER NOT NULL, image TEXT NOT NULL, description TEXT NOT NULL, featured INTEGER NOT NULL, status TEXT NOT NULL, published INTEGER NOT NULL, updated_at TEXT NOT NULL)',
@@ -13,18 +14,34 @@ export const propertyFields = ['id','title','type','city','district','price','be
 export const saveProperty = `INSERT INTO properties (${propertyFields.join(',')}) VALUES (${propertyFields.map(() => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${propertyFields.slice(1).map(k => `${k}=excluded.${k}`).join(',')}`;
 export const propertyArgs = row => propertyFields.map(key => row[key]);
 
-export async function cloudDatabase(env) {
+export async function cloudDatabase(env, fetcher = globalThis.fetch) {
   const url = env.TURSO_DATABASE_URL?.trim(), authToken = env.TURSO_AUTH_TOKEN?.trim();
-  if (!url || !authToken) throw new Error('Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN on Vercel.');
+  const missing = [...(!url ? ['TURSO_DATABASE_URL'] : []), ...(!authToken ? ['TURSO_AUTH_TOKEN'] : [])];
+  if (missing.length) throw new CloudDatabaseError('TURSO_CONFIG_MISSING', missing);
   const parsed = URL.parse(url);
-  if (!parsed || !['libsql:', 'https:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) throw new Error('TURSO_DATABASE_URL must be a remote libsql:// or HTTPS database URL.');
+  if (!parsed || !['libsql:', 'https:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password || parsed.search || parsed.hash || !['', '/'].includes(parsed.pathname)) {
+    throw new CloudDatabaseError('TURSO_URL_INVALID');
+  }
   const { createClient } = await import('@libsql/client/web');
-  const client = createClient({url,authToken});
+  const client = createClient({url,authToken,fetch: async (request,options) => {
+    const timeout = AbortSignal.timeout(8000);
+    const original = options?.signal ?? request.signal;
+    const signal = original ? AbortSignal.any([original,timeout]) : timeout;
+    const response = await fetcher(request,{...options,signal});
+    // Hrana uses unauthenticated GETs to discover the protocol; only classify errors from SQL requests.
+    if ((options?.method ?? request.method) === 'POST' && [401,403,404].includes(response.status)) {
+      void response.body?.cancel().catch(() => {});
+      throw databaseError({status:response.status});
+    }
+    return response;
+  }});
+  const query = async run => { try { return await run(); } catch (error) { throw databaseError(error); } };
+  const execute = (sql,args) => query(() => client.execute({sql,args}));
   return {
-    get: async (sql,args = []) => (await client.execute({sql,args})).rows[0],
-    all: async (sql,args = []) => (await client.execute({sql,args})).rows,
-    run: async (sql,args = []) => (await client.execute({sql,args})).rowsAffected,
-    batch: statements => client.batch(statements, 'write'),
+    get: async (sql,args = []) => (await execute(sql,args)).rows[0],
+    all: async (sql,args = []) => (await execute(sql,args)).rows,
+    run: async (sql,args = []) => (await execute(sql,args)).rowsAffected,
+    batch: statements => query(() => client.batch(statements, 'write')),
     close: () => client.close(),
   };
 }
