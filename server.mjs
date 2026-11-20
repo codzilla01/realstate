@@ -1,14 +1,15 @@
 import { createServer } from 'node:http';
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createReadStream, mkdirSync, statSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { createAdminAuth, codeLifetime, requestCooldown, emailOK, normalizeDigits } from './admin-auth.mjs';
+import { smtpDelivery } from './mail.mjs';
 import { cities, types, statuses, stages, samples, siteDefaults } from './catalog.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const fail = (status, message) => Object.assign(new Error(message), { status });
-const hash = value => createHash('sha256').update(value).digest();
 const now = () => new Date().toISOString();
 const clean = (value, max, min = 0) => {
   if (value == null && min === 0) return '';
@@ -25,13 +26,10 @@ const number = (value, max, min = 0) => {
 };
 const validDate = date => /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date;
 const dateInUAE = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-const emailOK = email => /^[^\s@<>?&#:]+@[a-z\d.-]+\.[a-z\d-]+$/i.test(email);
-const normalizePhone = phone => phone.replace(/[٠-٩۰-۹]/g, digit => String(digit >= '۰' ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660));
 const phoneOK = phone => /^\+?[\d ()-]+$/.test(phone) && phone.replace(/\D/g, '').length >= 7;
 const imageOK = path => /^\/images\/[\w.-]+\.(jpe?g|webp|png)$/i.test(path) || (() => { try { const u = new URL(path); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; } })();
 
-export function createApp({ dbPath = ':memory:', password = '', seed = true, secure = false } = {}) {
-  if (password && password.length < 14) throw new Error('ADMIN_PASSWORD must contain at least 14 characters');
+export function createApp({ dbPath = ':memory:', adminEmail = '', deliverCode, authClock, seed = true, secure = false } = {}) {
   if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(dbPath);
   db.exec(`PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;
@@ -55,8 +53,7 @@ export function createApp({ dbPath = ':memory:', password = '', seed = true, sec
   const property = db.prepare('SELECT * FROM properties WHERE id=?');
   const leads = () => db.prepare('SELECT leads.*, properties.title AS property_title FROM leads LEFT JOIN properties ON properties.id=leads.property_id ORDER BY created_at DESC').all();
   const site = () => ({ ...siteDefaults, ...JSON.parse(get.get('site')?.value || '{}') });
-  const adminHash = password ? hash(password) : null;
-  const tokenDigest = token => createHash('sha256').update(adminHash).update(token).digest('hex');
+  const adminAuth = createAdminAuth({ db, adminEmail, deliverCode, secure, clock: authClock });
   const sampleIds = new Set(samples.map(p => p.id));
   const withDemoFlag = p => ({ ...p, demo: sampleIds.has(p.id) });
   const buckets = new Map();
@@ -68,15 +65,6 @@ export function createApp({ dbPath = ':memory:', password = '', seed = true, sec
     if (++item.count > max) throw fail(429, 'محاولات كثيرة. يُرجى المحاولة لاحقًا.');
     return key;
   }
-  const cookie = (token, age) => `almaktab_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secure ? '; Secure' : ''}`;
-  const sessionToken = req => {
-    const token = /(?:^|;\s*)almaktab_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '')?.[1];
-    return token && adminHash ? tokenDigest(token) : null;
-  };
-  const authed = req => {
-    const token = sessionToken(req);
-    return !!(adminHash && token && db.prepare('SELECT 1 FROM sessions WHERE token=? AND expires>?').get(token, Date.now()));
-  };
   async function body(req) {
     if (req.headers['content-type']?.split(';')[0] !== 'application/json') throw fail(415, 'صيغة الطلب غير مدعومة.');
     let size = 0; const parts = [];
@@ -125,33 +113,35 @@ export function createApp({ dbPath = ':memory:', password = '', seed = true, sec
         const id = randomUUID(), propertyId = clean(input.propertyId, 70) || null;
         const listing = propertyId && property.get(propertyId);
         if (propertyId && (!listing?.published || listing.status !== 'available')) throw fail(409, 'هذا العقار غير متاح للمعاينة حاليًا.');
-        const name = clean(input.name, 90, 2), phone = normalizePhone(clean(input.phone, 30, 7)), email = clean(input.email, 180);
+        const name = clean(input.name, 90, 2), phone = normalizeDigits(clean(input.phone, 30, 7)), email = clean(input.email, 180);
         const date = clean(input.preferredDate, 10);
         if (!phoneOK(phone) || (email && !emailOK(email))) throw fail(400, 'تحقق من رقم الهاتف والبريد الإلكتروني.');
         if (date && (!validDate(date) || date < dateInUAE())) throw fail(400, 'اختر تاريخًا صالحًا اليوم أو بعده.');
         db.prepare('INSERT INTO leads VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id, propertyId, name, phone, email, date, clean(input.message, 1800), 'new', '', '', now());
         return json(res, 201, { reference: id.split('-')[0].toUpperCase() });
       }
-      if (path === '/api/admin/login' && method === 'POST') {
-        if (!adminHash) throw fail(503, 'لم يُضبط رمز دخول الإدارة على الخادم بعد.');
-        const bucket = limit(req, 'login', 8, 600_000);
-        const input = await body(req);
-        if (typeof input.password !== 'string' || !timingSafeEqual(hash(input.password), adminHash)) throw fail(401, 'رمز الدخول غير صحيح.');
-        buckets.delete(bucket);
-        const previous = sessionToken(req);
-        if (previous) db.prepare('DELETE FROM sessions WHERE token=?').run(previous);
-        db.prepare('DELETE FROM sessions WHERE expires<=?').run(Date.now());
-        const token = randomBytes(32).toString('hex');
-        db.prepare('INSERT INTO sessions VALUES (?,?)').run(tokenDigest(token), Date.now() + 28_800_000);
-        res.setHeader('Set-Cookie', cookie(token, 28_800));
+      if (method === 'POST' && ['/api/admin/login/request-code', '/api/admin/login/verify-code'].includes(path)) {
+        if (!adminAuth.ready) throw fail(503, 'لم يُضبط الدخول بالبريد الإلكتروني على الخادم بعد.');
+        const requesting = path.endsWith('/request-code');
+        limit(req, requesting ? 'login-request' : 'login-verify', requesting ? 10 : 25, 900_000);
+        const input = await body(req), email = clean(input.email, 180);
+        if (!emailOK(email)) throw fail(400, 'أدخل بريدًا إلكترونيًا صالحًا.');
+        if (requesting) {
+          res.setHeader('Set-Cookie', adminAuth.requestCode(req, email));
+          return json(res, 202, { ok: true, retryAfter: requestCooldown, expiresIn: codeLifetime });
+        }
+        const code = normalizeDigits(clean(input.code, 6));
+        if (!/^\d{6}$/.test(code)) throw fail(400, 'أدخل رمزًا من 6 أرقام.');
+        const cookies = adminAuth.verifyCode(req, email, code);
+        if (!cookies) throw fail(401, 'الرمز غير صحيح أو لم يعد صالحًا. تحقّق منه أو اطلب رمزًا جديدًا.');
+        res.setHeader('Set-Cookie', cookies);
         return json(res, 200, { ok: true });
       }
       if (path.startsWith('/api/admin/')) {
         res.setHeader('Content-Security-Policy', `${res.getHeader('Content-Security-Policy')}; frame-ancestors 'none'`);
-        if (!authed(req)) throw fail(401, 'سجّل الدخول للوصول إلى لوحة الإدارة.');
+        if (!adminAuth.authenticated(req)) throw fail(401, 'سجّل الدخول للوصول إلى لوحة الإدارة.');
         if (path === '/api/admin/logout' && method === 'POST') {
-          db.prepare('DELETE FROM sessions WHERE token=?').run(sessionToken(req));
-          res.setHeader('Set-Cookie', cookie('', 0));
+          res.setHeader('Set-Cookie', adminAuth.logout(req));
           return json(res, 200, { ok: true });
         }
         if (path === '/api/admin/data' && method === 'GET') return json(res, 200, { properties: properties(false), leads: leads(), site: site() });
@@ -177,7 +167,7 @@ export function createApp({ dbPath = ':memory:', password = '', seed = true, sec
           return json(res, 200, { ok: true });
         }
         if (path === '/api/admin/site' && method === 'PUT') {
-          const data = await body(req), email = clean(data.email, 180), phone = normalizePhone(clean(data.phone, 30));
+          const data = await body(req), email = clean(data.email, 180), phone = normalizeDigits(clean(data.phone, 30));
           if ((email && !emailOK(email)) || (phone && !phoneOK(phone))) throw fail(400, 'تحقق من بيانات التواصل.');
           set.run('site', JSON.stringify({ headline: clean(data.headline, 100, 3), intro: clean(data.intro, 230, 3), email, phone }));
           return json(res, 200, site());
@@ -197,8 +187,9 @@ export function createApp({ dbPath = ':memory:', password = '', seed = true, sec
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   process.umask(0o077);
   const production = process.env.NODE_ENV === 'production';
-  if (production && !process.env.ADMIN_PASSWORD) throw new Error('Set ADMIN_PASSWORD before starting in production');
-  const app = createApp({ dbPath: process.env.DATABASE_PATH || resolve(root, 'data/almaktab.sqlite'), password: process.env.ADMIN_PASSWORD || '', secure: process.env.COOKIE_SECURE === 'true' || production, seed: process.env.SEED_DEMO ? process.env.SEED_DEMO === 'true' : !production });
+  const adminEmail = process.env.ADMIN_EMAIL?.trim() || '', deliverCode = smtpDelivery(process.env);
+  if (Boolean(adminEmail) !== Boolean(deliverCode) || (production && !adminEmail)) throw new Error('Configure ADMIN_EMAIL and SMTP delivery together before starting');
+  const app = createApp({ dbPath: process.env.DATABASE_PATH || resolve(root, 'data/almaktab.sqlite'), adminEmail, deliverCode, secure: process.env.COOKIE_SECURE === 'true' || production, seed: process.env.SEED_DEMO ? process.env.SEED_DEMO === 'true' : !production });
   const port = Number(process.env.PORT || 3000);
   app.listen(port, '0.0.0.0', () => console.log(`Almaktab listening on port ${port}`));
 }

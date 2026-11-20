@@ -2,6 +2,8 @@ import { $, $$, icon, icons, escape as e, translations as t, options, num, money
 
 icons();
 const login = $('#login'), shell = $('#admin-shell'), content = $('#admin-content'), loginForm = $('#login-form');
+const codeForm = $('#code-form'), resendBtn = $('#resend-code'), changeEmailBtn = $('#change-email');
+let loginEmail = '', resendAt = 0, resendTimer, authPending = false;
 const propertyEditor = $('#property-editor'), leadEditor = $('#lead-editor'), propertyForm = $('#property-form'), leadForm = $('#lead-form');
 const tabs = ['overview', 'inventory', 'leads', 'site'];
 let data = null, tab = 'overview', stage = '', inventoryStatus = '', inventoryQuery = '', leadQuery = '', selectedDay = '';
@@ -73,7 +75,7 @@ function render() {
   if (tab === 'leads') renderLeads();
 }
 function signedOut() {
-  data = null; shell.hidden = true; login.hidden = false; loginForm.reset(); content.replaceChildren();
+  data = null; shell.hidden = true; login.hidden = false; loginForm.reset(); showEmailStep(false); content.replaceChildren();
   propertyForm.reset(); leadForm.reset(); $('#lead-contact').replaceChildren();
   for (const dialog of [propertyEditor, leadEditor]) if (dialog.open) dialog.close();
   $('.skip').href = '#admin-main';
@@ -87,17 +89,82 @@ async function initialLoad() {
   catch (err) { if (err.status !== 401) errorIn(loginForm, err.message); }
 }
 function handleError(err, form) {
-  if (err.status === 401 && form !== loginForm) { signedOut(); errorIn(loginForm, 'انتهت جلسة الإدارة. سجّل الدخول مجددًا.'); }
+  if (err.status === 401 && form !== loginForm && form !== codeForm) { signedOut(); errorIn(loginForm, 'انتهت جلسة الإدارة. سجّل الدخول مجددًا.'); }
   else if (form) errorIn(form, err.message); else toast(err.message);
 }
+function showEmailStep(focus = true) {
+  clearInterval(resendTimer); resendAt = 0; loginEmail = '';
+  codeForm.hidden = true; codeForm.reset(); errorIn(codeForm);
+  $('#login-email').textContent = '';
+  loginForm.hidden = false; errorIn(loginForm);
+  $('#login-title').innerHTML = 'أهلاً بعودتك<span>.</span>';
+  $('#login-intro').textContent = 'أدخل البريد الإداري المعتمد لتلقّي رمز دخول مؤقت، من دون كلمة مرور.';
+  if (focus) loginForm.elements.email.focus();
+}
+function showCodeStep(expiresIn) {
+  loginForm.hidden = true; codeForm.hidden = false; codeForm.reset(); errorIn(codeForm);
+  $('#login-title').innerHTML = 'تحقّق من بريدك<span>.</span>';
+  $('#login-intro').textContent = `إذا كان البريد معتمدًا، فسيصلك رمز صالح لمدة ${Math.floor(expiresIn / 60)} دقائق.`;
+  $('#login-email').textContent = loginEmail;
+  $('#code-note').textContent = 'تحقّق من صندوق الوارد أو الرسائل غير المرغوب فيها.';
+  codeForm.elements.code.focus();
+}
+function renderResend() {
+  const wait = Math.max(0, Math.ceil((resendAt - Date.now()) / 1000));
+  resendBtn.disabled = authPending || wait > 0;
+  resendBtn.textContent = wait ? `إعادة إرسال الرمز بعد ${wait} ث` : 'إعادة إرسال الرمز';
+  if (!wait) clearInterval(resendTimer);
+}
+function startResendTimer(seconds) {
+  clearInterval(resendTimer);
+  resendAt = Date.now() + seconds * 1000;
+  resendTimer = setInterval(renderResend, 250);
+  renderResend();
+}
+function setCodeBusy(value) {
+  authPending = value;
+  busy(codeForm, value);
+  changeEmailBtn.disabled = value;
+  renderResend();
+}
+const requestLoginCode = email => api('/api/admin/login/request-code', {method:'POST', data:{email}});
 loginForm.addEventListener('submit', async ev => {
-  ev.preventDefault(); busy(loginForm,true); errorIn(loginForm);
-  try { await api('/api/admin/login',{method:'POST',data:Object.fromEntries(new FormData(loginForm))}); await refresh(); loginForm.reset(); $('#workspace').focus(); }
-  catch (err) { handleError(err,loginForm); }
-  finally { busy(loginForm,false); }
+  ev.preventDefault();
+  if (authPending) return;
+  authPending = true; busy(loginForm,true); errorIn(loginForm);
+  const email = loginForm.elements.email.value.trim();
+  try {
+    const result = await requestLoginCode(email);
+    loginEmail = email;
+    showCodeStep(result.expiresIn);
+    startResendTimer(result.retryAfter);
+  } catch (err) { errorIn(loginForm, err.message); }
+  finally { authPending = false; busy(loginForm,false); renderResend(); }
+});
+changeEmailBtn.addEventListener('click', () => showEmailStep());
+resendBtn.addEventListener('click', async () => {
+  if (authPending || Date.now() < resendAt) return;
+  setCodeBusy(true); errorIn(codeForm);
+  try {
+    const result = await requestLoginCode(loginEmail);
+    codeForm.reset(); codeForm.elements.code.focus();
+    $('#code-note').textContent = 'تم طلب رمز جديد. استخدم آخر رمز يصلك في البريد.';
+    startResendTimer(result.retryAfter);
+  } catch (err) { errorIn(codeForm, err.message); }
+  finally { setCodeBusy(false); }
+});
+codeForm.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  if (authPending) return;
+  setCodeBusy(true); errorIn(codeForm);
+  try {
+    await api('/api/admin/login/verify-code', {method:'POST', data:{email:loginEmail, code:codeForm.elements.code.value}});
+    await refresh(); loginForm.reset(); showEmailStep(false); $('#workspace').focus();
+  } catch (err) { errorIn(codeForm, err.message); }
+  finally { setCodeBusy(false); }
 });
 $('#logout').addEventListener('click', async () => {
-  try { await api('/api/admin/logout',{method:'POST',data:{}}); signedOut(); loginForm.elements.password.focus(); }
+  try { await api('/api/admin/logout',{method:'POST',data:{}}); signedOut(); loginForm.elements.email.focus(); }
   catch (err) { handleError(err); }
 });
 function openProperty(p) {
