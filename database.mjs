@@ -1,6 +1,3 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { samples } from './catalog.mjs';
 
 const schema = [
@@ -19,26 +16,6 @@ const schema = [
 export const propertyFields = ['id','title','type','city','district','price','beds','baths','area','image','description','featured','status','published','updated_at'];
 export const saveProperty = `INSERT INTO properties (${propertyFields.join(',')}) VALUES (${propertyFields.map(() => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${propertyFields.slice(1).map(k => `${k}=excluded.${k}`).join(',')}`;
 export const propertyArgs = row => propertyFields.map(key => row[key]);
-
-export function localDatabase(path) {
-  if (path !== ':memory:') mkdirSync(dirname(path), {recursive:true, mode:0o700});
-  const connection = new DatabaseSync(path);
-  connection.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000');
-  return {
-    local: true,
-    get: (sql,args = []) => connection.prepare(sql).get(...args),
-    all: (sql,args = []) => connection.prepare(sql).all(...args),
-    run: (sql,args = []) => Number(connection.prepare(sql).run(...args).changes),
-    batch(statements) {
-      connection.exec('BEGIN IMMEDIATE');
-      try {
-        for (const {sql,args = []} of statements) connection.prepare(sql).run(...args);
-        connection.exec('COMMIT');
-      } catch (error) { connection.exec('ROLLBACK'); throw error; }
-    },
-    close: () => connection.close(),
-  };
-}
 
 export async function cloudDatabase(env) {
   const url = env.TURSO_DATABASE_URL?.trim(), authToken = env.TURSO_AUTH_TOKEN?.trim();
