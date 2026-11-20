@@ -33,7 +33,8 @@ export async function api(path, init = {}) {
   let response;
   try { response = await fetch(path, { method:init.method, ...(init.data && { headers:{'Content-Type':'application/json'}, body:JSON.stringify(init.data) }) }); }
   catch { throw new Error('تعذر الاتصال بالخادم. تحقق من اتصالك وحاول مرة أخرى.'); }
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(() => null);
+  if (!data || typeof data !== 'object') throw new Error('لم يستجب خادم الموقع كما هو متوقّع. افتح الموقع من رابط خادم Node.js، لا من استضافة ملفات ثابتة.');
   if (!response.ok) throw Object.assign(new Error(data.error || 'تعذر إكمال العملية.'), { status: response.status });
   return data;
 }

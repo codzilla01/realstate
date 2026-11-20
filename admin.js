@@ -3,7 +3,8 @@ import { $, $$, icon, icons, escape as e, translations as t, options, num, money
 icons();
 const login = $('#login'), shell = $('#admin-shell'), content = $('#admin-content'), loginForm = $('#login-form');
 const codeForm = $('#code-form'), resendBtn = $('#resend-code'), changeEmailBtn = $('#change-email');
-let loginEmail = '', resendAt = 0, resendTimer, authPending = false;
+let loginEmail = '', resendAt = 0, resendTimer, authPending = false, loginConfigured = true;
+$('#login-frame-note').hidden = window.self === window.top;
 const propertyEditor = $('#property-editor'), leadEditor = $('#lead-editor'), propertyForm = $('#property-form'), leadForm = $('#lead-form');
 const tabs = ['overview', 'inventory', 'leads', 'site'];
 let data = null, tab = 'overview', stage = '', inventoryStatus = '', inventoryQuery = '', leadQuery = '', selectedDay = '';
@@ -86,7 +87,20 @@ async function refresh() {
 }
 async function initialLoad() {
   try { await refresh(); }
-  catch (err) { if (err.status !== 401) errorIn(loginForm, err.message); }
+  catch (err) {
+    if (err.status !== 401) { errorIn(loginForm, err.message); return; }
+    try {
+      const { configured } = await api('/api/admin/login/status');
+      if (configured === false) {
+        loginConfigured = false;
+        const notice = $('#login-unavailable');
+        notice.textContent = 'لم يُفعّل الدخول بالبريد في هذه النسخة بعد. يلزم ضبط البريد الإداري وخدمة الإرسال على الخادم ثم إعادة تشغيله.';
+        notice.hidden = false;
+        loginForm.elements.email.disabled = true;
+        busy(loginForm, true);
+      }
+    } catch (statusError) { errorIn(loginForm, statusError.message); }
+  }
 }
 function handleError(err, form) {
   if (err.status === 401 && form !== loginForm && form !== codeForm) { signedOut(); errorIn(loginForm, 'انتهت جلسة الإدارة. سجّل الدخول مجددًا.'); }
@@ -130,7 +144,7 @@ function setCodeBusy(value) {
 const requestLoginCode = email => api('/api/admin/login/request-code', {method:'POST', data:{email}});
 loginForm.addEventListener('submit', async ev => {
   ev.preventDefault();
-  if (authPending) return;
+  if (authPending || !loginConfigured) return;
   authPending = true; busy(loginForm,true); errorIn(loginForm);
   const email = loginForm.elements.email.value.trim();
   try {
@@ -139,7 +153,7 @@ loginForm.addEventListener('submit', async ev => {
     showCodeStep(result.expiresIn);
     startResendTimer(result.retryAfter);
   } catch (err) { errorIn(loginForm, err.message); }
-  finally { authPending = false; busy(loginForm,false); renderResend(); }
+  finally { authPending = false; busy(loginForm,!loginConfigured); renderResend(); }
 });
 changeEmailBtn.addEventListener('click', () => showEmailStep());
 resendBtn.addEventListener('click', async () => {

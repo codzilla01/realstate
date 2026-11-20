@@ -15,7 +15,7 @@ function readCookie(req, name) {
   return token && /^[a-f0-9]{64}$/.test(token) ? token : null;
 }
 
-export function createAdminAuth({ db, adminEmail = '', deliverCode, secure, clock = Date.now }) {
+export function createAdminAuth({ db, adminEmail = '', deliverCode, onDeliveryError = () => console.error('Admin login email delivery failed. Check the SMTP service configuration and logs.'), secure, clock = Date.now }) {
   const email = adminEmail.trim().toLowerCase();
   if (email && (email.length > 180 || !emailOK(email))) throw new Error('ADMIN_EMAIL must be a valid email address');
   const ready = Boolean(email && typeof deliverCode === 'function');
@@ -65,9 +65,9 @@ export function createAdminAuth({ db, adminEmail = '', deliverCode, secure, cloc
         challenges.set(token, challenge);
         sends.push(time);
         // Return the same response for unrelated addresses and SMTP failures. Do not log codes or addresses.
-        Promise.resolve().then(() => deliverCode({ to: email, code, expiresIn: codeLifetime })).catch(() => {
+        Promise.resolve().then(() => deliverCode({ to: email, code, expiresIn: codeLifetime })).catch(error => {
           if (challenges.get(token) === challenge) challenges.delete(token);
-          console.error('Admin login email delivery failed. Check the SMTP service configuration and logs.');
+          onDeliveryError(error);
         });
       }
       return cookie(challengeName, token, codeLifetime);
