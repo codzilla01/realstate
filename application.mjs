@@ -1,14 +1,9 @@
-import { createServer } from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream, statSync } from 'node:fs';
-import { dirname, extname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { initializeDatabase, localDatabase, propertyArgs, saveProperty } from './database.mjs';
+import { initializeDatabase, propertyArgs, saveProperty } from './database.mjs';
 import { createAdminAuth, codeLifetime, requestCooldown, emailOK, normalizeDigits } from './admin-auth.mjs';
-import { mailErrorSummary, setupAdminMail } from './mail.mjs';
 import { cities, types, statuses, stages, samples, siteDefaults } from './catalog.mjs';
 
-const root = dirname(fileURLToPath(import.meta.url));
+
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const now = () => new Date().toISOString();
 const clean = (value, max, min = 0) => {
@@ -62,8 +57,6 @@ export async function createHandler({ db, adminEmail = '', deliverCode, onDelive
     catch { throw fail(400, 'تعذر قراءة الطلب.'); }
   }
   const json = (res, status, payload) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(payload)); };
-  const paths = new Map(Object.entries({ '/': 'index.html', '/index.html': 'index.html', '/admin': 'admin.html', '/admin.html': 'admin.html', '/styles.css': 'styles.css', '/admin.css': 'admin.css', '/script.js': 'script.js', '/admin.js': 'admin.js', '/ui.js': 'ui.js' }));
-  const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2' };
   return async (req, res, routeOverride) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -71,18 +64,6 @@ export async function createHandler({ db, adminEmail = '', deliverCode, onDelive
     try {
       const path = routeOverride || new URL(req.url, 'http://localhost').pathname;
       const method = req.method;
-      if (!path.startsWith('/api/')) {
-        if (method !== 'GET' && method !== 'HEAD') throw fail(405, 'طريقة غير مدعومة.');
-        const asset = /^\/(images\/[\w.-]+\.(?:jpe?g|png|webp)|fonts\/[\w.-]+\.woff2)$/i.exec(path);
-        const file = paths.get(path) || (asset && `public/${asset[1]}`);
-        if (!file) throw fail(404, 'الصفحة غير موجودة.');
-        if (secure && file === 'admin.html') res.setHeader('Content-Security-Policy', `${res.getHeader('Content-Security-Policy')}; frame-ancestors 'none'`);
-        const full = resolve(root, file);
-        const stat = statSync(full, { throwIfNoEntry: false });
-        if (!stat?.isFile()) throw fail(404, 'الملف غير موجود.');
-        res.writeHead(200, { 'Content-Type': mime[extname(file)], 'Content-Length': stat.size, 'Cache-Control': asset ? 'public, max-age=86400' : 'no-cache' });
-        return method === 'HEAD' ? res.end() : createReadStream(full).on('error', () => res.destroy()).pipe(res);
-      }
       if (method !== 'GET') {
         const origin = req.headers.origin;
         const requestOrigin = origin ? URL.parse(origin) : null;
@@ -172,32 +153,4 @@ export async function createHandler({ db, adminEmail = '', deliverCode, onDelive
       json(res, e.status || 500, { error: e.status ? e.message : 'تعذر إكمال العملية. حاول مرة أخرى.' });
     }
   };
-}
-
-export async function createApp({ dbPath = ':memory:', ...options } = {}) {
-  const db = localDatabase(dbPath);
-  let handler;
-  try { handler = await createHandler({ ...options, db }); }
-  catch (error) { db.close(); throw error; }
-  const server = createServer(handler);
-  server.on('close', () => db.close());
-  return server;
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.umask(0o077);
-  const production = process.env.NODE_ENV === 'production';
-  let mail = {};
-  try { mail = await setupAdminMail(process.env); }
-  catch (error) { console.warn(`Admin sign-in disabled: ${mailErrorSummary(error)} The public site is still available.`); }
-  const app = await createApp({
-    dbPath: process.env.DATABASE_PATH || resolve(root, 'data/almaktab.sqlite'),
-    adminEmail: mail.adminEmail, deliverCode: mail.deliverCode,
-    authSecret: process.env.AUTH_SECRET?.trim() || undefined,
-    onDeliveryError: error => console.error(`Admin email delivery failed: ${mailErrorSummary(error)}`),
-    secure: process.env.COOKIE_SECURE === 'true' || production,
-    seed: process.env.SEED_DEMO ? process.env.SEED_DEMO === 'true' : !production,
-  });
-  const port = Number(process.env.PORT || 3000);
-  app.listen(port, '0.0.0.0', () => console.log(`Almaktab listening on port ${port}`));
 }

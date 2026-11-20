@@ -1,12 +1,14 @@
 import { isIP } from 'node:net';
-import { createHandler } from './server.mjs';
+import { createHandler } from './application.mjs';
 import { cloudDatabase } from './database.mjs';
 import { mailErrorSummary, setupAdminMail } from './mail.mjs';
 
 const routePattern = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/;
 export function vercelPath(url) {
-  const { pathname, searchParams } = new URL(url, 'http://localhost');
-  const route = ['/', '/api', '/api/', '/api/almaktab'].includes(pathname) ? searchParams.get('__route') : pathname.startsWith('/api/') ? pathname.slice(5) : null;
+  const parsed = URL.parse(url, 'http://localhost');
+  if (!parsed) return null;
+  const { pathname, searchParams } = parsed;
+  const route = ['/', '/api', '/api/', '/api/almaktab', '/api/almaktab.js'].includes(pathname) ? searchParams.get('__route') : pathname.startsWith('/api/') ? pathname.slice(5) : null;
   return route && route.length <= 240 && routePattern.test(route) ? `/api/${route}` : null;
 }
 function json(res, status, message) {

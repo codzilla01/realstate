@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createApp } from '../server.mjs';
+import { createApp } from '../local-server.mjs';
 
 const adminEmail = 'admin@example.com';
 const requestCode = '/api/admin/login/request-code', verifyCode = '/api/admin/login/verify-code';
@@ -88,7 +88,8 @@ test('public files, safe validation, and session boundaries', async () => {
     const {req} = app;
     assert.equal((await req('/')).res.status, 200);
     assert.equal((await req('/admin')).res.status, 200);
-    assert.equal((await req('/server.mjs')).res.status, 404);
+    assert.equal((await req('/application.mjs')).res.status, 404);
+    assert.equal((await req('/local-server.mjs')).res.status, 404);
     assert.equal((await req('/api/site')).json.properties.length, 3);
     assert.equal((await req('/api/admin/data')).res.status, 401);
     assert.equal((await req(requestCode,{method:'POST',data:{email:adminEmail},headers:{Origin:'https://example.com'}})).res.status, 403);

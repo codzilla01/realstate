@@ -1,13 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "api/almaktab.js": {
-      "maxDuration": 30
-    }
-  },
+  "builds": [
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } },
+    { "src": "api/almaktab.js", "use": "@vercel/node", "config": { "maxDuration": 30 } }
+  ],
   "headers": [
     {
       "source": "/:path*",
@@ -52,7 +49,7 @@
     },
     {
       "source": "/api/:path+",
-      "destination": "/api/almaktab?__route=:path"
+      "destination": "/api/almaktab.js?__route=:path"
     }
   ]
 }
