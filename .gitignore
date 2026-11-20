@@ -3,3 +3,6 @@
 !.env.example
 /data/
 node_modules/
+
+/dist/
+/.vercel/

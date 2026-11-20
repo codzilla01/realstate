@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.13"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",
     "test": "node --test",
-    "admin:check-email": "node --env-file-if-exists=.env check-mail.mjs"
+    "admin:check-email": "node --env-file-if-exists=.env check-mail.mjs",
+    "build": "node tools/build-static.mjs"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@vercel/functions": "^3.11.3",
     "nodemailer": "^10.6.1"
   }
 }

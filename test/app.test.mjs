@@ -13,7 +13,7 @@ const listing = {title:'دار النخيل', type:'villa', city:'dubai', distri
 const person = {name:'عميل اختبار', phone:'+971 50 555 5555', email:'test@example.com', message:'موعد لمعاينة المنزل'};
 async function start(options = {}) {
   const outbox = [];
-  const server = createApp({ adminEmail, deliverCode: async message => { outbox.push(message); }, ...options });
+  const server = await createApp({ adminEmail, deliverCode: async message => { outbox.push(message); }, ...options });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
@@ -76,7 +76,7 @@ test('publishing integrates the public catalog with the admin pipeline and persi
     assert.equal((await req('/api/site')).json.properties.length, 0);
     await app.close(); app = null;
     app = await start({dbPath,seed:false});
-    const saved = (await app.req('/api/admin/data',{cookie:await login(app)})).json;
+    const saved = (await app.req('/api/admin/data',{cookie})).json;
     assert.equal(saved.properties[0].published, 0); assert.equal(saved.leads[0].stage, 'scheduled');
     assert.equal(saved.leads[0].notes, 'تم التنسيق');
   } finally { if (app) await app.close(); await rm(dir,{recursive:true,force:true}); }
