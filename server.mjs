@@ -5,7 +5,7 @@ import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { createAdminAuth, codeLifetime, requestCooldown, emailOK, normalizeDigits } from './admin-auth.mjs';
-import { smtpDelivery } from './mail.mjs';
+import { mailErrorSummary, setupAdminMail } from './mail.mjs';
 import { cities, types, statuses, stages, samples, siteDefaults } from './catalog.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,7 @@ const dateInUAE = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai
 const phoneOK = phone => /^\+?[\d ()-]+$/.test(phone) && phone.replace(/\D/g, '').length >= 7;
 const imageOK = path => /^\/images\/[\w.-]+\.(jpe?g|webp|png)$/i.test(path) || (() => { try { const u = new URL(path); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; } })();
 
-export function createApp({ dbPath = ':memory:', adminEmail = '', deliverCode, authClock, seed = true, secure = false } = {}) {
+export function createApp({ dbPath = ':memory:', adminEmail = '', deliverCode, onDeliveryError, authClock, seed = true, secure = false } = {}) {
   if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(dbPath);
   db.exec(`PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;
@@ -53,7 +53,7 @@ export function createApp({ dbPath = ':memory:', adminEmail = '', deliverCode, a
   const property = db.prepare('SELECT * FROM properties WHERE id=?');
   const leads = () => db.prepare('SELECT leads.*, properties.title AS property_title FROM leads LEFT JOIN properties ON properties.id=leads.property_id ORDER BY created_at DESC').all();
   const site = () => ({ ...siteDefaults, ...JSON.parse(get.get('site')?.value || '{}') });
-  const adminAuth = createAdminAuth({ db, adminEmail, deliverCode, secure, clock: authClock });
+  const adminAuth = createAdminAuth({ db, adminEmail, deliverCode, onDeliveryError, secure, clock: authClock });
   const sampleIds = new Set(samples.map(p => p.id));
   const withDemoFlag = p => ({ ...p, demo: sampleIds.has(p.id) });
   const buckets = new Map();
@@ -120,6 +120,7 @@ export function createApp({ dbPath = ':memory:', adminEmail = '', deliverCode, a
         db.prepare('INSERT INTO leads VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id, propertyId, name, phone, email, date, clean(input.message, 1800), 'new', '', '', now());
         return json(res, 201, { reference: id.split('-')[0].toUpperCase() });
       }
+      if (method === 'GET' && path === '/api/admin/login/status') return json(res, 200, { configured: adminAuth.ready });
       if (method === 'POST' && ['/api/admin/login/request-code', '/api/admin/login/verify-code'].includes(path)) {
         if (!adminAuth.ready) throw fail(503, 'لم يُضبط الدخول بالبريد الإلكتروني على الخادم بعد.');
         const requesting = path.endsWith('/request-code');
@@ -187,9 +188,16 @@ export function createApp({ dbPath = ':memory:', adminEmail = '', deliverCode, a
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   process.umask(0o077);
   const production = process.env.NODE_ENV === 'production';
-  const adminEmail = process.env.ADMIN_EMAIL?.trim() || '', deliverCode = smtpDelivery(process.env);
-  if (Boolean(adminEmail) !== Boolean(deliverCode) || (production && !adminEmail)) throw new Error('Configure ADMIN_EMAIL and SMTP delivery together before starting');
-  const app = createApp({ dbPath: process.env.DATABASE_PATH || resolve(root, 'data/almaktab.sqlite'), adminEmail, deliverCode, secure: process.env.COOKIE_SECURE === 'true' || production, seed: process.env.SEED_DEMO ? process.env.SEED_DEMO === 'true' : !production });
+  let mail = {};
+  try { mail = await setupAdminMail(process.env); }
+  catch (error) { console.warn(`Admin sign-in disabled: ${mailErrorSummary(error)} The public site is still available.`); }
+  const app = createApp({
+    dbPath: process.env.DATABASE_PATH || resolve(root, 'data/almaktab.sqlite'),
+    adminEmail: mail.adminEmail, deliverCode: mail.deliverCode,
+    onDeliveryError: error => console.error(`Admin email delivery failed: ${mailErrorSummary(error)}`),
+    secure: process.env.COOKIE_SECURE === 'true' || production,
+    seed: process.env.SEED_DEMO ? process.env.SEED_DEMO === 'true' : !production,
+  });
   const port = Number(process.env.PORT || 3000);
   app.listen(port, '0.0.0.0', () => console.log(`Almaktab listening on port ${port}`));
 }

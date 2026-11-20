@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "admin:check-email": "node --env-file-if-exists=.env check-mail.mjs"
   },
   "dependencies": {
     "nodemailer": "^10.6.1"

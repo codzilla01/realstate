@@ -112,6 +112,7 @@ test('only the configured email gets a code; verification requires the same brow
   const app = await start();
   try {
     const {req, outbox} = app;
+    assert.deepEqual((await req('/api/admin/login/status')).json, {configured:true});
     const foreignChallenge = await issue(app, 'visitor@example.com');
     assert.equal(outbox.length, 0);
     const {cookie} = await issue(app, adminEmail.toUpperCase());
@@ -154,6 +155,8 @@ test('an unconfigured server exposes the public catalog but does not issue login
   const app = await start({adminEmail:'',deliverCode:undefined});
   try {
     assert.equal((await app.req('/api/site')).res.status,200);
+    assert.deepEqual((await app.req('/api/admin/login/status')).json, {configured:false});
+    assert.equal((await app.req('/check-mail.mjs')).res.status,404);
     const result = await app.req(requestCode,{method:'POST',data:{email:adminEmail}});
     assert.equal(result.res.status,503);
     assert.equal(result.res.headers.get('set-cookie'),null);
@@ -177,4 +180,14 @@ test('changing the configured email revokes sessions, even if the original addre
     app = await start({dbPath,seed:false});
     assert.equal((await app.req('/api/admin/data',{cookie})).res.status,401);
   } finally { if (app) await app.close(); await rm(dir,{recursive:true,force:true}); }
+});
+
+test('SMTP delivery errors are reported only on the server', async () => {
+  const errors = [];
+  const deliveryError = Object.assign(new Error('provider-only diagnostic'), {code:'EAUTH'});
+  const app = await start({deliverCode: async () => { throw deliveryError; }, onDeliveryError: error => errors.push(error)});
+  try {
+    await issue(app);
+    assert.deepEqual(errors, [deliveryError]);
+  } finally { await app.close(); }
 });
