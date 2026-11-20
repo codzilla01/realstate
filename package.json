@@ -9,12 +9,10 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env tools/serve-local.mjs",
     "test": "node --test",
-    "admin:check-email": "node --env-file-if-exists=.env check-mail.mjs",
-    "build": "node tools/build-static.mjs"
+    "build": "node tools/build-static.mjs",
+    "admin:hash-password": "node tools/hash-admin-password.mjs"
   },
   "dependencies": {
-    "@libsql/client": "^0.18.0",
-    "@vercel/functions": "^3.11.3",
-    "nodemailer": "^10.6.1"
+    "@libsql/client": "^0.18.0"
   }
 }
