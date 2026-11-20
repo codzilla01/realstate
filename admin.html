@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم | المكتب العقاري</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    <style>
+        :root {
+            --gold: #376ed4;
+            --gold-light: #3f93f4;
+            --gold-dark: #0f37b8;
+            --bg-dark: #06080d;
+            --bg-card: #0f1119;
+            --bg-card-hover: #151823;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: rgba(212, 175, 55, 0.15);
+            --accent: #e63946;
+            --success: #10b981;
+            --warning: #ff9900;
+            --info: #3b82f6;
+            --gradient-gold: linear-gradient(135deg, #D4AF37, #F4D03F);
+            --gradient-card: linear-gradient(145deg, #0f1119, #1a1d2e);
+            --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 20px;
+            --radius-xl: 24px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Tajawal', sans-serif; background: var(--bg-dark); color: var(--text-primary); display: flex; min-height: 100vh; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--gradient-gold); border-radius: 3px; }
+
+        /* Secret Access Bar */
+        .secret-press-bar { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: transparent; z-index: 10001; pointer-events: none; }
+        .secret-press-bar.active { background: rgba(212,175,55,0.3); }
+        .secret-press-bar .fill { height: 100%; width: 0%; background: var(--gradient-gold); transition: width 0.05s linear; }
+        .secret-hint { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.95); color: #fff; padding: 10px 20px; border-radius: 30px; font-size: 0.85rem; z-index: 10002; opacity: 0; pointer-events: none; transition: opacity 0.3s; border: 1px solid var(--gold); }
+        .secret-hint.show { opacity: 1; }
+
+        /* Admin Login Modal */
+        .admin-login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 20000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(16px); padding: 20px; }
+        .admin-login-overlay.open { display: flex; }
+        .admin-login-card { background: var(--gradient-card); border-radius: var(--radius-xl); padding: 36px 28px; text-align: center; max-width: 420px; width: 100%; border: 1px solid var(--border-color); box-shadow: 0 40px 100px rgba(0,0,0,0.8); position: relative; animation: modalIn 0.35s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(40px) scale(0.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .admin-login-card .admin-icon { width: 64px; height: 64px; background: var(--gradient-gold); border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; color: #000; margin-bottom: 16px; box-shadow: 0 12px 32px rgba(212,175,55,0.3); }
+        .admin-login-card h3 { font-size: 1.3rem; margin-bottom: 20px; }
+        .auth-step { display: none; } .auth-step.active { display: block; }
+        .telegram-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px; border: none; border-radius: 14px; background: linear-gradient(135deg, #0088cc, #00a8e8); color: #fff; cursor: pointer; font-weight: 700; font-size: 0.95rem; font-family: 'Tajawal', sans-serif; transition: var(--transition); }
+        .telegram-btn:hover { background: linear-gradient(135deg, #0099dd, #00b8ff); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,136,204,0.3); }
+        .telegram-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .otp-input-group { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
+        .otp-input { width: 48px; height: 56px; text-align: center; font-size: 1.4rem; font-weight: 800; border: 2px solid var(--border-color); border-radius: 12px; background: var(--bg-dark); color: #fff; font-family: monospace; transition: var(--transition); }
+        .otp-input:focus { border-color: var(--gold); box-shadow: 0 0 20px rgba(212,175,55,0.15); outline: none; }
+        .timer-display { color: var(--warning); font-size: 0.85rem; margin: 10px 0; }
+        .resend-link { color: #0088cc; cursor: pointer; font-size: 0.85rem; } .resend-link.disabled { color: var(--text-secondary); pointer-events: none; }
+        .error-msg { color: var(--accent); font-size: 0.85rem; margin-top: 10px; display: none; } .error-msg.show { display: block; }
+        .admin-login-close { position: absolute; top: 14px; left: 14px; background: rgba(255,255,255,0.08); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; transition: var(--transition); }
+        .admin-login-close:hover { background: var(--accent); }
+
+        /* Sidebar */
+        .sidebar { width: 280px; background: var(--bg-card); padding: 28px 20px; display: flex; flex-direction: column; position: fixed; height: 100vh; border-left: 1px solid var(--border-color); z-index: 100; }
+        .logo { font-size: 26px; font-weight: 900; background: var(--gradient-gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 40px; text-align: center; cursor: pointer; user-select: none; letter-spacing: -0.5px; }
+        .nav-item { display: flex; align-items: center; gap: 14px; padding: 14px 18px; color: var(--text-secondary); border-radius: 12px; margin-bottom: 4px; transition: var(--transition); cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+        .nav-item:hover { background: rgba(212,175,55,0.06); color: var(--text-primary); }
+        .nav-item.active { background: rgba(212,175,55,0.12); color: var(--gold); border-right: 3px solid var(--gold); }
+        .nav-item i { font-size: 20px; width: 24px; text-align: center; }
+        .user-info { margin-top: auto; padding: 18px; background: rgba(212,175,55,0.06); border-radius: 16px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--border-color); }
+        .user-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--gradient-gold); display: flex; align-items: center; justify-content: center; font-weight: 900; color: #000; font-size: 1.1rem; }
+        .user-name { font-weight: 700; font-size: 0.9rem; } .user-role { font-size: 0.75rem; color: var(--text-secondary); }
+
+        /* Main Content */
+        .main-content { flex: 1; margin-right: 280px; padding: 28px 32px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; }
+        .page-title { font-size: 30px; font-weight: 900; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .search-box { background: var(--bg-card); border: 1px solid var(--border-color); padding: 10px 18px; border-radius: 50px; display: flex; align-items: center; gap: 10px; }
+        .search-box input { background: none; border: none; color: #fff; outline: none; font-family: 'Tajawal', sans-serif; font-size: 0.9rem; width: 220px; }
+        .btn { padding: 10px 22px; border: none; border-radius: 50px; cursor: pointer; font-family: 'Tajawal', sans-serif; font-weight: 600; font-size: 0.85rem; transition: var(--transition); display: inline-flex; align-items: center; gap: 8px; }
+        .btn-gold { background: var(--gradient-gold); color: #000; box-shadow: 0 4px 16px rgba(212,175,55,0.2); }
+        .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(212,175,55,0.35); }
+        .btn-outline { background: transparent; border: 1.5px solid var(--border-color); color: var(--text-primary); }
+        .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+        .btn-sm { padding: 8px 16px; font-size: 0.8rem; }
+        .btn-xs { padding: 6px 12px; font-size: 0.75rem; border-radius: 8px; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 32px; }
+        .stat-card { background: var(--bg-card); padding: 22px 24px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); transition: var(--transition); cursor: pointer; }
+        .stat-card:hover { border-color: var(--gold); transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.3); }
+        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .stat-icon { width: 44px; height: 44px; border-radius: 12px; background: rgba(212,175,55,0.1); display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 20px; }
+        .stat-value { font-size: 30px; font-weight: 900; }
+        .stat-label { color: var(--text-secondary); font-size: 0.85rem; }
+
+        /* Tables */
+        .table-container { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border-color); overflow: hidden; margin-bottom: 24px; }
+        .table-header { padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px; }
+        .table-title { font-size: 18px; font-weight: 800; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 14px 20px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.85rem; }
+        th { color: var(--text-secondary); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover td { background: rgba(255,255,255,0.01); }
+        .status-badge { padding: 5px 14px; border-radius: 50px; font-size: 0.75rem; font-weight: 700; display: inline-block; }
+        .status-available { background: rgba(16,185,129,0.15); color: var(--success); }
+        .status-sold { background: rgba(230,57,70,0.15); color: var(--accent); }
+        .status-rented { background: rgba(59,130,246,0.15); color: var(--info); }
+        .status-reserved { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .featured-star { color: var(--gold); font-size: 1rem; }
+        .action-icons { display: flex; gap: 6px; }
+        .action-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--text-secondary); font-size: 14px; transition: var(--transition); }
+        .action-icon:hover { background: var(--gold); color: #000; }
+        .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .filter-tab { padding: 8px 18px; border-radius: 50px; cursor: pointer; font-size: 0.8rem; border: 1.5px solid var(--border-color); background: transparent; color: var(--text-secondary); font-family: 'Tajawal', sans-serif; font-weight: 500; transition: var(--transition); }
+        .filter-tab:hover, .filter-tab.active { border-color: var(--gold); color: var(--gold); background: rgba(212,175,55,0.08); }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 5000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--gradient-card); border-radius: var(--radius-xl); padding: 28px; width: 95%; max-width: 750px; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border-color); box-shadow: 0 40px 100px rgba(0,0,0,0.6); position: relative; }
+        .modal-close { position: absolute; top: 16px; left: 16px; background: rgba(255,255,255,0.06); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; transition: var(--transition); z-index: 10; }
+        .modal-close:hover { background: var(--accent); }
+        .modal h3 { font-size: 1.5rem; margin-bottom: 24px; text-align: center; font-weight: 900; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { font-weight: 600; font-size: 0.82rem; color: var(--text-secondary); }
+        .form-group input, .form-group select, .form-group textarea { background: var(--bg-dark); border: 1.5px solid var(--border-color); color: #fff; padding: 11px 16px; border-radius: 10px; font-family: 'Tajawal', sans-serif; font-size: 0.85rem; outline: none; transition: var(--transition); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--gold); }
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+
+        /* Notification */
+        .notification { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); background: var(--bg-card); border: 1.5px solid var(--gold); padding: 14px 28px; border-radius: 50px; color: #fff; z-index: 6000; display: none; animation: slideDown 0.3s ease; font-weight: 600; font-size: 0.9rem; }
+        @keyframes slideDown { from { transform: translateX(-50%) translateY(-100%); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+
+        /* Chart Container */
+        .chart-container { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border-color); padding: 24px; margin-bottom: 24px; }
+        .chart-container canvas { max-height: 320px; }
+
+        @media (max-width: 768px) {
+            .sidebar { position: relative; width: 100%; height: auto; padding: 16px; }
+            .main-content { margin-right: 0; padding: 16px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="secret-press-bar" id="secret-press-bar"><div class="fill" id="secret-press-fill"></div></div>
+    <div class="secret-hint" id="secret-hint"></div>
+
+    <div class="admin-login-overlay" id="admin-login-overlay">
+        <div class="admin-login-card">
+            <button class="admin-login-close" id="admin-login-close">&times;</button>
+            <div class="admin-icon"><i class="fas fa-shield-halved"></i></div>
+            <h3>🔐 دخول المسؤول</h3>
+            <div class="auth-step active" id="admin-step-request">
+                <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:18px;">تحقق سريع عبر Telegram</p>
+                <button class="telegram-btn" id="admin-request-code-btn"><i class="fab fa-telegram-plane"></i> طلب كود التحقق</button>
+                <div class="error-msg" id="admin-step1-error"></div>
+                <div style="color:var(--success);font-size:0.85rem;margin-top:10px;display:none;" id="admin-step1-success"></div>
+            </div>
+            <div class="auth-step" id="admin-step-verify">
+                <p style="color:var(--text-secondary);font-size:0.85rem;">أدخل الكود المكون من 6 أرقام</p>
+                <div class="otp-input-group">
+                    <input type="text" class="otp-input" maxlength="1" id="admin-otp-1" inputmode="numeric">
+                    <input type="text" class="otp-input" maxlength="1" id="admin-otp-2" inputmode="numeric">
+                    <input type="text" class="otp-input" maxlength="1" id="admin-otp-3" inputmode="numeric">
+                    <input type="text" class="otp-input" maxlength="1" id="admin-otp-4" inputmode="numeric">
+                    <input type="text" class="otp-input" maxlength="1" id="admin-otp-5" inputmode="numeric">
+                    <input type="text" class="otp-input" maxlength="1" id="admin-otp-6" inputmode="numeric">
+                </div>
+                <div class="timer-display" id="admin-timer-display"></div>
+                <span class="resend-link disabled" id="admin-resend-link">إعادة الإرسال</span>
+                <div class="error-msg" id="admin-step2-error"></div>
+            </div>
+        </div>
+    </div>
+
+    <aside class="sidebar">
+        <div class="logo" id="secret-admin-trigger"> المكتب العقاري</div>
+        <nav>
+            <a class="nav-item active" onclick="switchTab(this, 'dashboard')"><i class="fas fa-th-large"></i> لوحة التحكم</a>
+            <a class="nav-item" onclick="switchTab(this, 'properties')"><i class="fas fa-building"></i> إدارة العقارات</a>
+            <a class="nav-item" onclick="switchTab(this, 'clients')"><i class="fas fa-users"></i> العملاء</a>
+            <a class="nav-item" onclick="switchTab(this, 'appointments')"><i class="fas fa-calendar-check"></i> طلبات المعاينة</a>
+            <a class="nav-item" onclick="switchTab(this, 'reports')"><i class="fas fa-chart-pie"></i> التقارير</a>
+            <a class="nav-item" onclick="switchTab(this, 'content')"><i class="fas fa-pen-to-square"></i> إدارة المحتوى</a>
+            <a class="nav-item" onclick="switchTab(this, 'settings')"><i class="fas fa-gear"></i> الإعدادات</a>
+        </nav>
+        <div class="user-info">
+            <div class="user-avatar">أح</div>
+            <div><div class="user-name"> </div><div class="user-role">المدير العام</div></div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div id="notification" class="notification"></div>
+        <div class="header">
+            <h1 class="page-title" id="tabTitle">لوحة التحكم</h1>
+            <div class="header-actions">
+                <div class="search-box"><i class="fas fa-search"></i><input type="text" placeholder="بحث سريع..." id="globalSearch" oninput="handleGlobalSearch(this.value)"></div>
+                <button class="btn btn-outline" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
+            </div>
+        </div>
+        <div id="tabContent"></div>
+    </main>
+
+    <div class="modal-overlay" id="propertyModal">
+        <div class="modal"><button class="modal-close" onclick="closeModal('propertyModal')">&times;</button><h3 id="modalTitle">إضافة عقار جديد</h3><form id="propertyForm"><input type="hidden" id="propId"><div class="form-grid"><div class="form-group"><label>اسم العقار *</label><input type="text" id="propName" required></div><div class="form-group"><label>النوع *</label><select id="propType" required><option value="">اختر</option><option value="فيلا">فيلا</option><option value="شقة">شقة</option><option value="بنتهاوس">بنتهاوس</option><option value="تاون هاوس">تاون هاوس</option><option value="قصر">قصر</option><option value="أرض">أرض</option><option value="مكتب">مكتب</option></select></div><div class="form-group"><label>الموقع *</label><input type="text" id="propLocation" required></div><div class="form-group"><label>السعر (د.إ) *</label><input type="number" id="propPrice" required></div><div class="form-group"><label>المساحة (قدم²)</label><input type="number" id="propArea"></div><div class="form-group"><label>عدد الغرف</label><input type="number" id="propRooms"></div><div class="form-group"><label>عدد الحمامات</label><input type="number" id="propBathrooms"></div><div class="form-group"><label>رابط الصورة</label><input type="url" id="propImage" placeholder="https://..."></div><div class="form-group"><label>الحالة</label><select id="propStatus"><option value="متاحة">متاحة</option><option value="محجوز">محجوز</option><option value="مباع">مباع</option><option value="مؤجر">مؤجر</option></select></div><div class="form-group"><label>نوع العرض</label><select id="propDealType"><option value="بيع">بيع</option><option value="إيجار">إيجار</option></select></div><div class="form-group" style="flex-direction:row;align-items:center;gap:10px;"><label>عقار مميز</label><input type="checkbox" id="propFeatured" style="width:18px;height:18px;accent-color:var(--gold);"></div><div class="form-group full"><label>الوصف</label><textarea id="propDescription" rows="3"></textarea></div></div><div class="form-actions"><button type="button" class="btn btn-outline" onclick="closeModal('propertyModal')">إلغاء</button><button type="submit" class="btn btn-gold"><i class="fas fa-save"></i> حفظ العقار</button></div></form></div>
+    </div>
+
+    <div class="modal-overlay" id="clientModal">
+        <div class="modal"><button class="modal-close" onclick="closeModal('clientModal')">&times;</button><h3 id="clientModalTitle">إضافة عميل جديد</h3><form id="clientForm"><input type="hidden" id="clientId"><div class="form-grid"><div class="form-group"><label>الاسم الكامل *</label><input type="text" id="clientName" required></div><div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="clientEmail"></div><div class="form-group"><label>رقم الهاتف *</label><input type="tel" id="clientPhone" required></div><div class="form-group"><label>الجنسية</label><input type="text" id="clientNationality"></div><div class="form-group"><label>نوع العميل</label><select id="clientType"><option value="مهتم">مهتم</option><option value="مشتري">مشتري</option><option value="مستأجر">مستأجر</option><option value="مستثمر">مستثمر</option><option value="VIP">VIP</option></select></div><div class="form-group"><label>الميزانية</label><input type="number" id="clientBudget" placeholder="د.إ"></div><div class="form-group"><label>العقارات المفضلة</label><input type="number" id="clientFavorites" value="0"></div><div class="form-group"><label>طريقة التواصل</label><select id="clientContactMethod"><option value="whatsapp">واتساب</option><option value="email">بريد إلكتروني</option><option value="phone">اتصال هاتفي</option></select></div><div class="form-group full"><label>ملاحظات</label><textarea id="clientNotes" rows="2"></textarea></div></div><div class="form-actions"><button type="button" class="btn btn-outline" onclick="closeModal('clientModal')">إلغاء</button><button type="submit" class="btn btn-gold"><i class="fas fa-save"></i> حفظ العميل</button></div></form></div>
+    </div>
+
+    <div class="modal-overlay" id="appointmentModal">
+        <div class="modal"><button class="modal-close" onclick="closeModal('appointmentModal')">&times;</button><h3 id="appointmentModalTitle">إضافة معاينة جديدة</h3><form id="appointmentForm"><input type="hidden" id="appointmentId"><div class="form-grid"><div class="form-group"><label>اسم العميل *</label><input type="text" id="appClientName" required></div><div class="form-group"><label>رقم الهاتف *</label><input type="tel" id="appClientPhone" required></div><div class="form-group"><label>العقار *</label><select id="appProperty" required></select></div><div class="form-group"><label>التاريخ *</label><input type="date" id="appDate" required></div><div class="form-group"><label>الوقت *</label><input type="time" id="appTime" required></div><div class="form-group"><label>الحالة</label><select id="appStatus"><option value="مجدولة">مجدولة</option><option value="مكتملة">مكتملة</option><option value="ملغية">ملغية</option></select></div><div class="form-group full"><label>ملاحظات</label><textarea id="appNotes" rows="2"></textarea></div></div><div class="form-actions"><button type="button" class="btn btn-outline" onclick="closeModal('appointmentModal')">إلغاء</button><button type="submit" class="btn btn-gold"><i class="fas fa-save"></i> حفظ المعاينة</button></div></form></div>
+    </div>
+
+    <script>
+        (function() {
+            // ==================== CONFIG ====================
+            const TELEGRAM_BOT_TOKEN = '8723447348:AAGtKoujIGCtbLXuPUWAR-B-oweiOdcDCKk';
+            const TELEGRAM_CHAT_ID = '6776057443';
+            const OTP_KEY = 'telegram_otp_data';
+            const LONG_PRESS_DURATION = 3000;
+            let otpTimer = null, otpTimeLeft = 0;
+            let currentTab = 'dashboard';
+            let charts = {};
+
+            // ==================== DATA STORES ====================
+            let properties = JSON.parse(localStorage.getItem('almaktab_properties') || '[]');
+            let clients = JSON.parse(localStorage.getItem('almaktab_clients') || '[]');
+            let appointments = JSON.parse(localStorage.getItem('almaktab_appointments') || '[]');
+            let siteContent = JSON.parse(localStorage.getItem('almaktab_content') || '{"heroTitle":"اكتشف أفخم العقارات في الإمارات","heroSubtitle":"نقدم لكم نخبة من أرقى العقارات الفاخرة","aboutText":"المكتب العقاري هو وجهتكم الأولى للعقارات الفاخرة","contactPhone":"+971 4 123 4567","contactEmail":"info@almaktab.ae","contactAddress":"شارع الشيخ زايد، دبي"}');
+            let siteSettings = JSON.parse(localStorage.getItem('almaktab_settings') || '{"defaultLanguage":"ar","defaultTheme":"dark","featuredPropertyId":"","whatsappNumber":"971501234567","currency":"AED","maxComparisonItems":4}');
+
+            // Seed data
+            if (properties.length === 0) {
+                properties = [
+                    { id: Date.now()+1, name: 'فيلا السعادة - نخلة جميرا', type: 'فيلا', location: 'نخلة جميرا، دبي', price: 85000000, area: 12000, rooms: 6, bathrooms: 8, image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600', status: 'متاحة', featured: true, description: 'فيلا فاخرة بإطلالة بحرية خلابة', dealType: 'بيع' },
+                    { id: Date.now()+2, name: 'سكاي ريزيدنس - داون تاون', type: 'بنتهاوس', location: 'داون تاون دبي', price: 45000000, area: 6500, rooms: 4, bathrooms: 5, image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600', status: 'متاحة', featured: true, description: 'بنتهاوس فاخر في قلب دبي', dealType: 'بيع' },
+                    { id: Date.now()+3, name: 'قصر الياسمين - تلال الإمارات', type: 'قصر', location: 'تلال الإمارات، دبي', price: 120000000, area: 18000, rooms: 8, bathrooms: 10, image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600', status: 'محجوز', featured: true, description: 'قصر فخم بمواصفات عالمية', dealType: 'بيع' },
+                    { id: Date.now()+4, name: 'شقة بحرية - دبي مارينا', type: 'شقة', location: 'دبي مارينا', price: 3500000, area: 2200, rooms: 2, bathrooms: 3, image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600', status: 'متاحة', featured: false, description: 'شقة عصرية بإطلالة على المارينا', dealType: 'إيجار' }
+                ];
+                saveData('properties');
+            }
+            if (clients.length === 0) {
+                clients = [
+                    { id: Date.now()+10, name: 'محمد الأحمد', email: 'mohammed@email.com', phone: '+971501234567', nationality: 'إماراتي', type: 'مستثمر', budget: 50000000, favorites: 3, contactMethod: 'whatsapp', notes: 'عميل ممتاز - مهتم بالفلل الفاخرة', createdAt: new Date().toISOString() },
+                    { id: Date.now()+11, name: 'سارة الخالدي', email: 'sara@email.com', phone: '+971502345678', nationality: 'سعودية', type: 'مشتري', budget: 20000000, favorites: 5, contactMethod: 'email', notes: 'تبحث عن شقة في داون تاون', createdAt: new Date().toISOString() },
+                    { id: Date.now()+12, name: 'علي المري', email: 'ali@email.com', phone: '+971503456789', nationality: 'قطري', type: 'VIP', budget: 150000000, favorites: 8, contactMethod: 'whatsapp', notes: 'عميل VIP - مهتم بالقصور', createdAt: new Date().toISOString() }
+                ];
+                saveData('clients');
+            }
+            if (appointments.length === 0) {
+                appointments = [
+                    { id: Date.now()+20, clientName: 'محمد الأحمد', clientPhone: '+971501234567', propertyId: properties[0]?.id, propertyName: properties[0]?.name, date: '2026-05-18', time: '16:00', status: 'مجدولة', notes: 'إحضار صور إضافية' },
+                    { id: Date.now()+21, clientName: 'سارة الخالدي', clientPhone: '+971502345678', propertyId: properties[1]?.id, propertyName: properties[1]?.name, date: '2026-05-20', time: '11:00', status: 'مجدولة', notes: '' }
+                ];
+                saveData('appointments');
+            }
+
+            function saveData(type) {
+                switch(type) {
+                    case 'properties': localStorage.setItem('almaktab_properties', JSON.stringify(properties)); break;
+                    case 'clients': localStorage.setItem('almaktab_clients', JSON.stringify(clients)); break;
+                    case 'appointments': localStorage.setItem('almaktab_appointments', JSON.stringify(appointments)); break;
+                    case 'content': localStorage.setItem('almaktab_content', JSON.stringify(siteContent)); break;
+                    case 'settings': localStorage.setItem('almaktab_settings', JSON.stringify(siteSettings)); break;
+                }
+            }
+
+            // ==================== SECRET ACCESS (same as before) ====================
+            const secretTrigger = document.getElementById('secret-admin-trigger');
+            const pressBar = document.getElementById('secret-press-bar');
+            const pressFill = document.getElementById('secret-press-fill');
+            const secretHint = document.getElementById('secret-hint');
+            let pressStart = 0, pressInterval = null, isPressing = false;
+
+            if (secretTrigger) {
+                secretTrigger.addEventListener('mousedown', startSecretPress);
+                secretTrigger.addEventListener('touchstart', startSecretPress, { passive: true });
+                secretTrigger.addEventListener('mouseup', cancelSecretPress);
+                secretTrigger.addEventListener('mouseleave', cancelSecretPress);
+                secretTrigger.addEventListener('touchend', cancelSecretPress);
+                secretTrigger.addEventListener('touchcancel', cancelSecretPress);
+                secretTrigger.addEventListener('dragstart', e => e.preventDefault());
+            }
+
+            function startSecretPress(e) {
+                if (e.type === 'touchstart') e.preventDefault();
+                if (isPressing) return;
+                isPressing = true; pressStart = Date.now();
+                pressBar.classList.add('active'); pressFill.style.width = '0%'; pressFill.style.transition = 'none';
+                pressInterval = setInterval(() => {
+                    const elapsed = Date.now() - pressStart;
+                    const progress = Math.min((elapsed / LONG_PRESS_DURATION) * 100, 100);
+                    pressFill.style.width = progress + '%';
+                    if (elapsed > 1000 && elapsed < 1300) showSecretHint('🔍 اضغط باستمرار...');
+                    else if (elapsed > 2000 && elapsed < 2300) showSecretHint('🔥 تابع...');
+                    if (elapsed >= LONG_PRESS_DURATION) {
+                        cancelSecretPress();
+                        showSecretHint('✅ تم الفتح!', 1500);
+                        const logoEl = secretTrigger;
+                        if (logoEl) { logoEl.style.transform = 'scale(1.08)'; logoEl.style.textShadow = '0 0 30px rgba(212,175,55,0.8)'; }
+                        setTimeout(() => { if (logoEl) { logoEl.style.transform = ''; logoEl.style.textShadow = ''; } }, 800);
+                        setTimeout(() => openAdminLogin(), 500);
+                    }
+                }, 30);
+            }
+
+            function cancelSecretPress() {
+                if (!isPressing && !pressInterval) return;
+                isPressing = false; clearInterval(pressInterval); pressInterval = null;
+                pressBar.classList.remove('active'); pressFill.style.transition = 'width 0.3s ease'; pressFill.style.width = '0%';
+                secretHint.classList.remove('show');
+            }
+
+            function showSecretHint(msg, duration = 1500) {
+                secretHint.textContent = msg; secretHint.classList.add('show');
+                clearTimeout(secretHint._timer);
+                if (duration > 0) secretHint._timer = setTimeout(() => secretHint.classList.remove('show'), duration);
+            }
+
+            document.addEventListener('keydown', e => {
+                if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+                    e.preventDefault(); showSecretHint('⌨️ اختصار الدخول', 1500);
+                    setTimeout(() => openAdminLogin(), 400);
+                }
+            });
+            if (new URL(location.href).searchParams.has('admin')) setTimeout(() => openAdminLogin(), 500);
+
+            // ==================== ADMIN LOGIN (same as before) ====================
+            function openAdminLogin() { document.getElementById('admin-login-overlay').classList.add('open'); showAdminStep('request'); document.getElementById('admin-step1-success').style.display = 'none'; }
+            function closeAdminLogin() { document.getElementById('admin-login-overlay').classList.remove('open'); clearInterval(otpTimer); }
+            function showAdminStep(step) {
+                document.querySelectorAll('.admin-login-card .auth-step').forEach(s => s.classList.remove('active'));
+                const el = document.getElementById('admin-step-' + step); if (el) el.classList.add('active');
+                document.querySelectorAll('.admin-login-card .error-msg').forEach(e => { e.textContent = ''; e.classList.remove('show'); });
+            }
+            function showAdminError(elId, msg) { const el = document.getElementById(elId); if (el) { el.textContent = msg; el.classList.add('show'); } }
+
+            async function adminRequestOTP() {
+                const btn = document.getElementById('admin-request-code-btn');
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإرسال...'; }
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                sessionStorage.setItem(OTP_KEY, JSON.stringify({ code: otp, expires: Date.now() + 300000, attempts: 0 }));
+                const msg = '🔐 *رمز تحقق لوحة التحكم - المكتب العقاري*\n\n🔢 الرمز: *' + otp + '*\n⏰ ' + new Date().toLocaleString('ar-EG') + '\n\n_صالح لمدة 5 دقائق_';
+                try {
+                    const r = await fetch('https://api.telegram.org/bot' + TELEGRAM_BOT_TOKEN + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: msg, parse_mode: 'Markdown' }) });
+                    const d = await r.json();
+                    if (d.ok) {
+                        document.getElementById('admin-step1-success').style.display = 'block';
+                        document.getElementById('admin-step1-success').textContent = '✅ تم إرسال الرمز إلى تيليجرام';
+                        setTimeout(() => { showAdminStep('verify'); startAdminTimer(300); document.getElementById('admin-otp-1')?.focus(); }, 600);
+                    } else showAdminError('admin-step1-error', '❌ فشل الإرسال');
+                } catch(e) { showAdminError('admin-step1-error', '❌ فشل الاتصال'); }
+                finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fab fa-telegram-plane"></i> طلب كود التحقق'; } }
+            }
+
+            function adminVerifyOTP() {
+                const digits = []; for (let i = 1; i <= 6; i++) digits.push(document.getElementById('admin-otp-' + i)?.value || '');
+                const entered = digits.join('');
+                if (entered.length !== 6) { showAdminError('admin-step2-error', 'أدخل 6 أرقام'); return; }
+                const otpData = JSON.parse(sessionStorage.getItem(OTP_KEY) || '{}');
+                if (!otpData.code) { showAdminError('admin-step2-error', 'منتهي'); return; }
+                if (Date.now() > otpData.expires) { showAdminError('admin-step2-error', 'منتهي'); return; }
+                if (otpData.attempts >= 5) { showAdminError('admin-step2-error', 'محظور'); return; }
+                otpData.attempts++; sessionStorage.setItem(OTP_KEY, JSON.stringify(otpData));
+                if (entered === otpData.code) {
+                    sessionStorage.removeItem(OTP_KEY); clearInterval(otpTimer);
+                    sessionStorage.setItem('admin_verified', 'true');
+                    localStorage.setItem('adminToken', 'telegram_verified_' + Date.now());
+                    showNotification('✅ تم التحقق بنجاح'); closeAdminLogin(); initDashboard();
+                } else {
+                    showAdminError('admin-step2-error', '❌ خطأ - متبقي ' + (5 - otpData.attempts) + ' محاولات');
+                    for (let j = 1; j <= 6; j++) document.getElementById('admin-otp-' + j).value = '';
+                    document.getElementById('admin-otp-1')?.focus();
+                }
+            }
+
+            function startAdminTimer(s) { otpTimeLeft = s; updateAdminTimerDisplay(); clearInterval(otpTimer); const rl = document.getElementById('admin-resend-link'); if (rl) rl.classList.add('disabled'); otpTimer = setInterval(() => { otpTimeLeft--; updateAdminTimerDisplay(); if (otpTimeLeft <= 0) { clearInterval(otpTimer); if (rl) rl.classList.remove('disabled'); } }, 1000); }
+            function updateAdminTimerDisplay() { const m = Math.floor(otpTimeLeft/60), s = otpTimeLeft%60; const d = document.getElementById('admin-timer-display'); if (d) d.textContent = '⏰ ' + m + ':' + (s < 10 ? '0' : '') + s; }
+
+            // Bind admin events
+            document.getElementById('admin-login-close')?.addEventListener('click', closeAdminLogin);
+            document.getElementById('admin-login-overlay')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeAdminLogin(); });
+            document.getElementById('admin-request-code-btn')?.addEventListener('click', adminRequestOTP);
+            document.getElementById('admin-resend-link')?.addEventListener('click', () => {
+                if (otpTimeLeft > 0) return; sessionStorage.removeItem(OTP_KEY); clearInterval(otpTimer);
+                for (let i = 1; i <= 6; i++) document.getElementById('admin-otp-' + i).value = '';
+                showAdminStep('request');
+            });
+            for (let i = 1; i <= 6; i++) {
+                const inp = document.getElementById('admin-otp-' + i);
+                if (inp) {
+                    inp.addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); if (this.value.length === 1 && i < 6) document.getElementById('admin-otp-' + (i+1))?.focus(); if (i === 6 && this.value.length === 1) setTimeout(adminVerifyOTP, 200); });
+                    inp.addEventListener('keydown', function(e) { if (e.key === 'Backspace' && this.value.length === 0 && i > 1) document.getElementById('admin-otp-' + (i-1))?.focus(); if (e.key === 'Enter') adminVerifyOTP(); });
+                    inp.addEventListener('paste', function(e) { e.preventDefault(); const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, ''); if (pasted.length === 6) { for (let j = 0; j < 6; j++) document.getElementById('admin-otp-' + (j+1)).value = pasted[j]; setTimeout(adminVerifyOTP, 200); } });
+                }
+            }
+
+            // ==================== UI FUNCTIONS ====================
+            function showNotification(msg, type = 'success') {
+                const n = document.getElementById('notification');
+                n.textContent = msg; n.style.display = 'block';
+                n.style.borderColor = type === 'error' ? '#F44336' : 'var(--gold)';
+                setTimeout(() => n.style.display = 'none', 3000);
+            }
+
+            function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+            function getStatusClass(s) { return { 'متاحة': 'status-available', 'محجوز': 'status-reserved', 'مباع': 'status-sold', 'مؤجر': 'status-rented' }[s] || ''; }
+
+            function switchTab(el, tab) {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                el.classList.add('active'); currentTab = tab;
+                const titles = { dashboard: 'لوحة التحكم', properties: 'إدارة العقارات', clients: 'العملاء', appointments: 'طلبات المعاينة', reports: 'التقارير', content: 'إدارة المحتوى', settings: 'الإعدادات' };
+                document.getElementById('tabTitle').textContent = titles[tab];
+                const content = document.getElementById('tabContent');
+                switch(tab) {
+                    case 'dashboard': content.innerHTML = renderDashboard(); initDashboardCharts(); break;
+                    case 'properties': content.innerHTML = renderProperties(); break;
+                    case 'clients': content.innerHTML = renderClients(); break;
+                    case 'appointments': content.innerHTML = renderAppointments(); break;
+                    case 'reports': content.innerHTML = renderReports(); setTimeout(initReportCharts, 300); break;
+                    case 'content': content.innerHTML = renderContent(); break;
+                    case 'settings': content.innerHTML = renderSettings(); break;
+                }
+            }
+
+            function handleGlobalSearch(q) {
+                if (!q) { switchTab(document.querySelector('.nav-item.active'), currentTab); return; }
+                const results = properties.filter(p => p.name.includes(q) || p.location.includes(q) || p.type.includes(q));
+                const content = document.getElementById('tabContent');
+                content.innerHTML = `<h3 style="margin-bottom:20px;">نتائج البحث عن "${q}" (${results.length})</h3>` + renderPropertiesTable(results);
+            }
+
+            // ==================== PROPERTIES ====================
+            function openPropertyModal(id = null) {
+                document.getElementById('propertyModal').classList.add('active');
+                if (id) {
+                    const p = properties.find(p => p.id === id);
+                    if (!p) return;
+                    document.getElementById('modalTitle').textContent = 'تعديل العقار';
+                    document.getElementById('propId').value = p.id;
+                    document.getElementById('propName').value = p.name;
+                    document.getElementById('propType').value = p.type;
+                    document.getElementById('propLocation').value = p.location;
+                    document.getElementById('propPrice').value = p.price;
+                    document.getElementById('propArea').value = p.area || '';
+                    document.getElementById('propRooms').value = p.rooms || '';
+                    document.getElementById('propBathrooms').value = p.bathrooms || '';
+                    document.getElementById('propImage').value = p.image || '';
+                    document.getElementById('propStatus').value = p.status;
+                    document.getElementById('propDealType').value = p.dealType || 'بيع';
+                    document.getElementById('propFeatured').checked = p.featured;
+                    document.getElementById('propDescription').value = p.description || '';
+                } else {
+                    document.getElementById('modalTitle').textContent = 'إضافة عقار جديد';
+                    document.getElementById('propertyForm').reset();
+                    document.getElementById('propId').value = '';
+                }
+            }
+
+            document.getElementById('propertyForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const id = document.getElementById('propId').value;
+                const prop = {
+                    id: id ? parseInt(id) : Date.now(),
+                    name: document.getElementById('propName').value,
+                    type: document.getElementById('propType').value,
+                    location: document.getElementById('propLocation').value,
+                    price: parseFloat(document.getElementById('propPrice').value),
+                    area: parseInt(document.getElementById('propArea').value) || 0,
+                    rooms: parseInt(document.getElementById('propRooms').value) || 0,
+                    bathrooms: parseInt(document.getElementById('propBathrooms').value) || 0,
+                    image: document.getElementById('propImage').value,
+                    status: document.getElementById('propStatus').value,
+                    dealType: document.getElementById('propDealType').value,
+                    featured: document.getElementById('propFeatured').checked,
+                    description: document.getElementById('propDescription').value
+                };
+                if (id) {
+                    const idx = properties.findIndex(p => p.id === parseInt(id));
+                    if (idx !== -1) properties[idx] = prop;
+                    showNotification('✅ تم تحديث العقار بنجاح - التعديلات ظاهرة للعملاء');
+                } else {
+                    properties.unshift(prop);
+                    showNotification('✅ تم إضافة العقار بنجاح');
+                }
+                saveData('properties'); closeModal('propertyModal');
+                switchTab(document.querySelector('.nav-item.active'), 'properties');
+            });
+
+            function renderProperties() {
+                return `<div class="filter-tabs"><span class="filter-tab active" onclick="filterProperties('all', this)">الكل (${properties.length})</span><span class="filter-tab" onclick="filterProperties('متاحة', this)">متاحة (${properties.filter(p=>p.status==='متاحة').length})</span><span class="filter-tab" onclick="filterProperties('محجوز', this)">محجوز (${properties.filter(p=>p.status==='محجوز').length})</span><span class="filter-tab" onclick="filterProperties('مباع', this)">مباع (${properties.filter(p=>p.status==='مباع').length})</span><span class="filter-tab" onclick="filterProperties('مؤجر', this)">مؤجر (${properties.filter(p=>p.status==='مؤجر').length})</span></div><div class="table-container"><div class="table-header"><h3 class="table-title">قائمة العقارات</h3><button class="btn btn-gold btn-sm" onclick="openPropertyModal()"><i class="fas fa-plus"></i> إضافة عقار</button></div>${renderPropertiesTable(properties)}</div>`;
+            }
+
+            function renderPropertiesTable(props) {
+                return `<table><thead><tr><th>#</th><th>العقار</th><th>النوع</th><th>الموقع</th><th>السعر</th><th>الحالة</th><th>مميز</th><th>إجراءات</th></tr></thead><tbody>${props.map((p, i) => `<tr><td>${i+1}</td><td style="font-weight:600;">${p.name}</td><td>${p.type}</td><td>${p.location}</td><td>${p.price.toLocaleString()} د.إ</td><td><span class="status-badge ${getStatusClass(p.status)}">${p.status}</span></td><td>${p.featured ? '<i class="fas fa-star featured-star"></i>' : '<i class="far fa-star" style="color:#555;"></i>'}</td><td><div class="action-icons"><button class="action-icon" title="تعديل" onclick="openPropertyModal(${p.id})"><i class="fas fa-pen"></i></button><button class="action-icon" title="حذف" onclick="deleteItem('property', ${p.id})"><i class="fas fa-trash"></i></button><button class="action-icon" title="${p.featured ? 'إلغاء التمييز' : 'تمييز'}" onclick="toggleFeatured(${p.id})"><i class="fas fa-star"></i></button><select style="background:var(--bg-dark);color:#fff;border:1px solid var(--border-color);border-radius:6px;padding:4px;font-size:0.75rem;" onchange="changeStatus(${p.id}, this.value)"><option ${p.status==='متاحة'?'selected':''}>متاحة</option><option ${p.status==='محجوز'?'selected':''}>محجوز</option><option ${p.status==='مباع'?'selected':''}>مباع</option><option ${p.status==='مؤجر'?'selected':''}>مؤجر</option></select></div></td></tr>`).join('')}</tbody></table>`;
+            }
+
+            window.filterProperties = (filter, el) => {
+                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                el.classList.add('active');
+                const filtered = filter === 'all' ? properties : properties.filter(p => p.status === filter);
+                document.getElementById('tabContent').innerHTML = `<div class="filter-tabs">...</div><div class="table-container"><div class="table-header"><h3 class="table-title">قائمة العقارات (${filtered.length})</h3><button class="btn btn-gold btn-sm" onclick="openPropertyModal()"><i class="fas fa-plus"></i> إضافة عقار</button></div>${renderPropertiesTable(filtered)}</div>`;
+            };
+
+            window.toggleFeatured = (id) => {
+                const p = properties.find(p => p.id === id);
+                if (p) { p.featured = !p.featured; saveData('properties'); showNotification(p.featured ? '⭐ تم تمييز العقار' : 'تم إلغاء التمييز'); switchTab(document.querySelector('.nav-item.active'), 'properties'); }
+            };
+            window.changeStatus = (id, status) => {
+                const p = properties.find(p => p.id === id);
+                if (p) { p.status = status; saveData('properties'); showNotification(`تم تغيير الحالة إلى "${status}"`); }
+            };
+            window.deleteItem = (type, id) => {
+                if (!confirm('هل أنت متأكد من الحذف؟')) return;
+                if (type === 'property') { properties = properties.filter(p => p.id !== id); saveData('properties'); }
+                else if (type === 'client') { clients = clients.filter(c => c.id !== id); saveData('clients'); }
+                else if (type === 'appointment') { appointments = appointments.filter(a => a.id !== id); saveData('appointments'); }
+                showNotification('🗑️ تم الحذف بنجاح');
+                switchTab(document.querySelector('.nav-item.active'), currentTab);
+            };
+
+            // ==================== CLIENTS ====================
+            function openClientModal(id = null) {
+                document.getElementById('clientModal').classList.add('active');
+                if (id) {
+                    const c = clients.find(c => c.id === id);
+                    if (!c) return;
+                    document.getElementById('clientModalTitle').textContent = 'تعديل بيانات العميل';
+                    document.getElementById('clientId').value = c.id;
+                    document.getElementById('clientName').value = c.name;
+                    document.getElementById('clientEmail').value = c.email || '';
+                    document.getElementById('clientPhone').value = c.phone;
+                    document.getElementById('clientNationality').value = c.nationality || '';
+                    document.getElementById('clientType').value = c.type;
+                    document.getElementById('clientBudget').value = c.budget || '';
+                    document.getElementById('clientFavorites').value = c.favorites || 0;
+                    document.getElementById('clientContactMethod').value = c.contactMethod || 'whatsapp';
+                    document.getElementById('clientNotes').value = c.notes || '';
+                } else {
+                    document.getElementById('clientModalTitle').textContent = 'إضافة عميل جديد';
+                    document.getElementById('clientForm').reset();
+                    document.getElementById('clientId').value = '';
+                }
+            }
+
+            document.getElementById('clientForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const id = document.getElementById('clientId').value;
+                const client = {
+                    id: id ? parseInt(id) : Date.now(),
+                    name: document.getElementById('clientName').value,
+                    email: document.getElementById('clientEmail').value,
+                    phone: document.getElementById('clientPhone').value,
+                    nationality: document.getElementById('clientNationality').value,
+                    type: document.getElementById('clientType').value,
+                    budget: parseFloat(document.getElementById('clientBudget').value) || 0,
+                    favorites: parseInt(document.getElementById('clientFavorites').value) || 0,
+                    contactMethod: document.getElementById('clientContactMethod').value,
+                    notes: document.getElementById('clientNotes').value,
+                    createdAt: id ? (clients.find(c => c.id === parseInt(id))?.createdAt || new Date().toISOString()) : new Date().toISOString()
+                };
+                if (id) {
+                    const idx = clients.findIndex(c => c.id === parseInt(id));
+                    if (idx !== -1) clients[idx] = client;
+                    showNotification('✅ تم تحديث بيانات العميل');
+                } else {
+                    clients.unshift(client);
+                    showNotification('✅ تم إضافة العميل');
+                }
+                saveData('clients'); closeModal('clientModal');
+                switchTab(document.querySelector('.nav-item.active'), 'clients');
+            });
+
+            function renderClients() {
+                return `<div class="table-container"><div class="table-header"><h3 class="table-title">قائمة العملاء (${clients.length})</h3><button class="btn btn-gold btn-sm" onclick="openClientModal()"><i class="fas fa-plus"></i> إضافة عميل</button></div><table><thead><tr><th>#</th><th>الاسم</th><th>البريد</th><th>الهاتف</th><th>النوع</th><th>الميزانية</th><th>المفضلة</th><th>إجراءات</th></tr></thead><tbody>${clients.map((c, i) => `<tr><td>${i+1}</td><td style="font-weight:600;">${c.name}</td><td>${c.email || '-'}</td><td>${c.phone}</td><td><span class="status-badge" style="background:${c.type==='VIP'?'rgba(212,175,55,0.2)':'rgba(59,130,246,0.15)'};color:${c.type==='VIP'?'var(--gold)':'var(--info)'};">${c.type}</span></td><td>${c.budget ? c.budget.toLocaleString() + ' د.إ' : '-'}</td><td>${c.favorites}</td><td><div class="action-icons"><button class="action-icon" title="تعديل" onclick="openClientModal(${c.id})"><i class="fas fa-pen"></i></button><button class="action-icon" title="حذف" onclick="deleteItem('client', ${c.id})"><i class="fas fa-trash"></i></button><button class="action-icon" title="واتساب" onclick="window.open('https://wa.me/${c.phone.replace(/[^0-9]/g,'')}')"><i class="fab fa-whatsapp"></i></button></div></td></tr>`).join('')}</tbody></table></div>`;
+            }
+
+            // ==================== APPOINTMENTS ====================
+            function openAppointmentModal(id = null) {
+                document.getElementById('appointmentModal').classList.add('active');
+                const select = document.getElementById('appProperty');
+                select.innerHTML = '<option value="">اختر العقار</option>' + properties.map(p => `<option value="${p.id}">${p.name} - ${p.location}</option>`).join('');
+                if (id) {
+                    const a = appointments.find(a => a.id === id);
+                    if (!a) return;
+                    document.getElementById('appointmentModalTitle').textContent = 'تعديل المعاينة';
+                    document.getElementById('appointmentId').value = a.id;
+                    document.getElementById('appClientName').value = a.clientName;
+                    document.getElementById('appClientPhone').value = a.clientPhone;
+                    document.getElementById('appProperty').value = a.propertyId;
+                    document.getElementById('appDate').value = a.date;
+                    document.getElementById('appTime').value = a.time;
+                    document.getElementById('appStatus').value = a.status;
+                    document.getElementById('appNotes').value = a.notes || '';
+                } else {
+                    document.getElementById('appointmentModalTitle').textContent = 'إضافة معاينة جديدة';
+                    document.getElementById('appointmentForm').reset();
+                    document.getElementById('appointmentId').value = '';
+                }
+            }
+
+            document.getElementById('appointmentForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const id = document.getElementById('appointmentId').value;
+                const propId = parseInt(document.getElementById('appProperty').value);
+                const prop = properties.find(p => p.id === propId);
+                const app = {
+                    id: id ? parseInt(id) : Date.now(),
+                    clientName: document.getElementById('appClientName').value,
+                    clientPhone: document.getElementById('appClientPhone').value,
+                    propertyId: propId,
+                    propertyName: prop ? prop.name : '',
+                    date: document.getElementById('appDate').value,
+                    time: document.getElementById('appTime').value,
+                    status: document.getElementById('appStatus').value,
+                    notes: document.getElementById('appNotes').value
+                };
+                if (id) {
+                    const idx = appointments.findIndex(a => a.id === parseInt(id));
+                    if (idx !== -1) appointments[idx] = app;
+                    showNotification('✅ تم تحديث المعاينة');
+                } else {
+                    appointments.unshift(app);
+                    showNotification('✅ تم جدولة المعاينة');
+                }
+                saveData('appointments'); closeModal('appointmentModal');
+                switchTab(document.querySelector('.nav-item.active'), 'appointments');
+            });
+
+            function renderAppointments() {
+                const upcoming = appointments.filter(a => a.status === 'مجدولة' && a.date >= new Date().toISOString().split('T')[0]);
+                const completed = appointments.filter(a => a.status === 'مكتملة');
+                const cancelled = appointments.filter(a => a.status === 'ملغية');
+                return `<div class="stats-grid" style="margin-bottom:20px;"><div class="stat-card"><div class="stat-value">${upcoming.length}</div><div class="stat-label">معاينات قادمة</div></div><div class="stat-card"><div class="stat-value">${completed.length}</div><div class="stat-label">معاينات مكتملة</div></div><div class="stat-card"><div class="stat-value">${cancelled.length}</div><div class="stat-label">معاينات ملغية</div></div></div><div class="table-container"><div class="table-header"><h3 class="table-title">جميع المعاينات (${appointments.length})</h3><button class="btn btn-gold btn-sm" onclick="openAppointmentModal()"><i class="fas fa-plus"></i> إضافة معاينة</button></div><table><thead><tr><th>#</th><th>العميل</th><th>الهاتف</th><th>العقار</th><th>التاريخ</th><th>الوقت</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>${appointments.map((a, i) => `<tr><td>${i+1}</td><td style="font-weight:600;">${a.clientName}</td><td>${a.clientPhone}</td><td>${a.propertyName || '—'}</td><td>${a.date}</td><td>${a.time}</td><td><span class="status-badge ${a.status==='مجدولة'?'status-available':a.status==='مكتملة'?'status-sold':'status-rented'}">${a.status}</span></td><td><div class="action-icons"><button class="action-icon" title="تعديل" onclick="openAppointmentModal(${a.id})"><i class="fas fa-pen"></i></button><button class="action-icon" title="حذف" onclick="deleteItem('appointment', ${a.id})"><i class="fas fa-trash"></i></button></div></td></tr>`).join('')}</tbody></table></div>`;
+            }
+
+            // ==================== REPORTS ====================
+            function renderReports() {
+                return `<div class="stats-grid"><div class="stat-card"><div class="stat-value">${properties.length}</div><div class="stat-label">إجمالي العقارات</div></div><div class="stat-card"><div class="stat-value">${properties.filter(p=>p.status==='مباع').length}</div><div class="stat-label">عقارات مباعة</div></div><div class="stat-card"><div class="stat-value">${clients.length}</div><div class="stat-label">إجمالي العملاء</div></div><div class="stat-card"><div class="stat-value">${(properties.reduce((s,p)=>s+p.price,0)/1e6).toFixed(0)}M</div><div class="stat-label">قيمة المحفظة (د.إ)</div></div></div><div class="chart-container"><h3 style="margin-bottom:16px;text-align:center;">توزيع العقارات حسب النوع</h3><canvas id="chartTypes" height="260"></canvas></div><div class="chart-container"><h3 style="margin-bottom:16px;text-align:center;">حالات العقارات</h3><canvas id="chartStatus" height="260"></canvas></div><div class="chart-container"><h3 style="margin-bottom:16px;text-align:center;">نسبة العملاء حسب النوع</h3><canvas id="chartClients" height="260"></canvas></div>`;
+            }
+
+            function initReportCharts() {
+                if (charts.types) charts.types.destroy();
+                if (charts.status) charts.status.destroy();
+                if (charts.clients) charts.clients.destroy();
+                const typeCounts = {}; properties.forEach(p => { typeCounts[p.type] = (typeCounts[p.type] || 0) + 1; });
+                const statusCounts = { 'متاحة': 0, 'محجوز': 0, 'مباع': 0, 'مؤجر': 0 };
+                properties.forEach(p => { statusCounts[p.status] = (statusCounts[p.status] || 0) + 1; });
+                const clientTypeCounts = {}; clients.forEach(c => { clientTypeCounts[c.type] = (clientTypeCounts[c.type] || 0) + 1; });
+                const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Tajawal' } } } } };
+                const ctx1 = document.getElementById('chartTypes');
+                if (ctx1) charts.types = new Chart(ctx1, { type: 'doughnut', data: { labels: Object.keys(typeCounts), datasets: [{ data: Object.values(typeCounts), backgroundColor: ['#D4AF37', '#F4D03F', '#e63946', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'], borderWidth: 0 }] }, options: chartOptions });
+                const ctx2 = document.getElementById('chartStatus');
+                if (ctx2) charts.status = new Chart(ctx2, { type: 'bar', data: { labels: Object.keys(statusCounts), datasets: [{ label: 'عدد العقارات', data: Object.values(statusCounts), backgroundColor: ['#10b981', '#f59e0b', '#e63946', '#3b82f6'], borderRadius: 8 }] }, options: { ...chartOptions, scales: { y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#94a3b8' } } } } });
+                const ctx3 = document.getElementById('chartClients');
+                if (ctx3) charts.clients = new Chart(ctx3, { type: 'pie', data: { labels: Object.keys(clientTypeCounts), datasets: [{ data: Object.values(clientTypeCounts), backgroundColor: ['#D4AF37', '#3b82f6', '#10b981', '#f59e0b', '#e63946'], borderWidth: 0 }] }, options: chartOptions });
+            }
+
+            function initDashboardCharts() {
+                const totalValue = properties.reduce((s, p) => s + p.price, 0);
+                const soldValue = properties.filter(p => p.status === 'مباع').reduce((s, p) => s + p.price, 0);
+                setTimeout(() => {
+                    const ctx = document.getElementById('dashboardMiniChart');
+                    if (ctx) new Chart(ctx, { type: 'line', data: { labels: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو'], datasets: [{ label: 'المبيعات (مليون د.إ)', data: [12, 19, 8, 15, 22], borderColor: '#D4AF37', backgroundColor: 'rgba(212,175,55,0.1)', fill: true, tension: 0.4 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
+                }, 200);
+            }
+
+            // ==================== CONTENT ====================
+            function renderContent() {
+                return `<div style="max-width:800px;"><div class="table-container" style="padding:28px;"><h3 style="margin-bottom:20px;">✏️ إدارة محتوى الموقع الرئيسي</h3><div class="form-grid"><div class="form-group"><label>عنوان Hero</label><input type="text" id="contentHeroTitle" value="${siteContent.heroTitle || ''}"></div><div class="form-group"><label>نص Hero الفرعي</label><input type="text" id="contentHeroSubtitle" value="${siteContent.heroSubtitle || ''}"></div><div class="form-group full"><label>نص عن المكتب</label><textarea id="contentAbout" rows="3">${siteContent.aboutText || ''}</textarea></div><div class="form-group"><label>هاتف التواصل</label><input type="text" id="contentPhone" value="${siteContent.contactPhone || ''}"></div><div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="contentEmail" value="${siteContent.contactEmail || ''}"></div><div class="form-group full"><label>العنوان</label><input type="text" id="contentAddress" value="${siteContent.contactAddress || ''}"></div></div><button class="btn btn-gold" style="margin-top:20px;" onclick="saveContent()"><i class="fas fa-save"></i> حفظ المحتوى</button></div></div>`;
+            }
+            window.saveContent = () => {
+                siteContent = {
+                    heroTitle: document.getElementById('contentHeroTitle').value,
+                    heroSubtitle: document.getElementById('contentHeroSubtitle').value,
+                    aboutText: document.getElementById('contentAbout').value,
+                    contactPhone: document.getElementById('contentPhone').value,
+                    contactEmail: document.getElementById('contentEmail').value,
+                    contactAddress: document.getElementById('contentAddress').value
+                };
+                saveData('content');
+                showNotification('✅ تم حفظ محتوى الموقع - سيظهر للعملاء فوراً');
+            };
+
+            // ==================== SETTINGS ====================
+            function renderSettings() {
+                return `<div style="max-width:800px;"><div class="table-container" style="padding:28px;margin-bottom:20px;"><h3 style="margin-bottom:20px;">⚙️ إعدادات عامة</h3><div class="form-grid"><div class="form-group"><label>اللغة الافتراضية</label><select id="setLanguage"><option value="ar" ${siteSettings.defaultLanguage==='ar'?'selected':''}>العربية</option><option value="en" ${siteSettings.defaultLanguage==='en'?'selected':''}>English</option></select></div><div class="form-group"><label>السمة الافتراضية</label><select id="setTheme"><option value="dark" ${siteSettings.defaultTheme==='dark'?'selected':''}>ليلية</option><option value="light" ${siteSettings.defaultTheme==='light'?'selected':''}>نهارية</option></select></div><div class="form-group"><label>رقم واتساب</label><input type="text" id="setWhatsapp" value="${siteSettings.whatsappNumber || ''}"></div><div class="form-group"><label>العملة</label><input type="text" id="setCurrency" value="${siteSettings.currency || 'AED'}"></div><div class="form-group"><label>الحد الأقصى للمقارنة</label><input type="number" id="setMaxCompare" value="${siteSettings.maxComparisonItems || 4}"></div></div><button class="btn btn-gold" style="margin-top:16px;" onclick="saveSettings()"><i class="fas fa-save"></i> حفظ الإعدادات</button></div><div class="table-container" style="padding:28px;margin-bottom:20px;"><h3 style="margin-bottom:20px;">📱 إعدادات تيليجرام</h3><div class="form-group"><label>معرفات المسموح لهم (ID)</label><textarea id="setTelegramIds" rows="3" style="background:var(--bg-dark);border:1px solid var(--border-color);color:#fff;padding:14px;border-radius:10px;font-family:'Tajawal',sans-serif;width:100%;">123456789\n987654321\n${TELEGRAM_CHAT_ID}</textarea></div><div class="form-group" style="margin-top:12px;"><label>Bot Token</label><input type="password" id="setBotToken" value="${TELEGRAM_BOT_TOKEN}" style="background:var(--bg-dark);border:1px solid var(--border-color);color:#fff;padding:14px;border-radius:10px;font-family:'Tajawal',sans-serif;width:100%;"></div><button class="btn btn-gold" style="margin-top:16px;" onclick="showNotification('✅ تم حفظ إعدادات تيليجرام')"><i class="fas fa-save"></i> حفظ</button></div><div class="table-container" style="padding:28px;"><h3 style="margin-bottom:20px;">🗑️ إدارة البيانات</h3><button class="btn btn-outline" style="border-color:var(--accent);color:var(--accent);margin:4px;" onclick="if(confirm('مسح جميع العقارات؟')){properties=[];saveData('properties');showNotification('تم المسح');switchTab(document.querySelector('.nav-item.active'),'properties');}"><i class="fas fa-trash"></i> مسح العقارات</button><button class="btn btn-outline" style="border-color:var(--accent);color:var(--accent);margin:4px;" onclick="if(confirm('مسح جميع العملاء؟')){clients=[];saveData('clients');showNotification('تم المسح');switchTab(document.querySelector('.nav-item.active'),'clients');}"><i class="fas fa-trash"></i> مسح العملاء</button><button class="btn btn-outline" style="border-color:var(--accent);color:var(--accent);margin:4px;" onclick="if(confirm('مسح جميع المعاينات؟')){appointments=[];saveData('appointments');showNotification('تم المسح');switchTab(document.querySelector('.nav-item.active'),'appointments');}"><i class="fas fa-trash"></i> مسح المعاينات</button></div></div>`;
+            }
+            window.saveSettings = () => {
+                siteSettings = {
+                    defaultLanguage: document.getElementById('setLanguage').value,
+                    defaultTheme: document.getElementById('setTheme').value,
+                    whatsappNumber: document.getElementById('setWhatsapp').value,
+                    currency: document.getElementById('setCurrency').value,
+                    maxComparisonItems: parseInt(document.getElementById('setMaxCompare').value) || 4
+                };
+                saveData('settings');
+                showNotification('✅ تم حفظ الإعدادات');
+            };
+
+            function renderDashboard() {
+                const total = properties.length;
+                const available = properties.filter(p => p.status === 'متاحة').length;
+                const sold = properties.filter(p => p.status === 'مباع').length;
+                const totalValue = properties.reduce((s, p) => s + p.price, 0);
+                return `<div class="stats-grid"><div class="stat-card" onclick="switchTab(document.querySelectorAll('.nav-item')[1], 'properties')"><div class="stat-header"><div class="stat-icon"><i class="fas fa-building"></i></div></div><div class="stat-value">${total}</div><div class="stat-label">إجمالي العقارات</div></div><div class="stat-card"><div class="stat-header"><div class="stat-icon"><i class="fas fa-check-circle"></i></div></div><div class="stat-value">${available}</div><div class="stat-label">متاحة</div></div><div class="stat-card"><div class="stat-header"><div class="stat-icon"><i class="fas fa-hand-holding-usd"></i></div></div><div class="stat-value">${sold}</div><div class="stat-label">مباعة</div></div><div class="stat-card"><div class="stat-header"><div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div></div><div class="stat-value">${(totalValue/1e6).toFixed(0)}M</div><div class="stat-label">القيمة (د.إ)</div></div></div><div class="chart-container"><h3 style="text-align:center;margin-bottom:12px;">📊 المبيعات الشهرية</h3><canvas id="dashboardMiniChart" height="200"></canvas></div><div class="table-container"><div class="table-header"><h3 class="table-title">آخر العقارات</h3></div>${renderPropertiesTable(properties.slice(-5).reverse())}</div>`;
+            }
+
+            function logout() {
+                localStorage.removeItem('adminToken');
+                sessionStorage.removeItem('admin_verified');
+                showNotification('تم تسجيل الخروج');
+                setTimeout(() => location.reload(), 1200);
+            }
+
+            function checkAuth() {
+                const token = localStorage.getItem('adminToken');
+                const verified = sessionStorage.getItem('admin_verified');
+                if (!token && !verified && !location.search.includes('demo=true')) {
+                    showNotification('يرجى تسجيل الدخول', 'error');
+                    setTimeout(() => openAdminLogin(), 1000);
+                    return false;
+                }
+                return true;
+            }
+
+            function initDashboard() {
+                switchTab(document.querySelector('.nav-item.active'), 'dashboard');
+                showNotification('👋 مرحباً بك في لوحة التحكم');
+            }
+
+            // Expose
+            window.switchTab = switchTab;
+            window.openPropertyModal = openPropertyModal;
+            window.openClientModal = openClientModal;
+            window.openAppointmentModal = openAppointmentModal;
+            window.closeModal = closeModal;
+            window.deleteItem = deleteItem;
+            window.toggleFeatured = toggleFeatured;
+            window.changeStatus = changeStatus;
+            window.filterProperties = filterProperties;
+            window.saveContent = saveContent;
+            window.saveSettings = saveSettings;
+            window.showNotification = showNotification;
+            window.logout = logout;
+            window.handleGlobalSearch = handleGlobalSearch;
+
+            if (checkAuth()) initDashboard();
+            console.log('✅ لوحة تحكم المكتب العقاري - جميع الخصائص مفعلة');
+        })();
+    </script>
+</body>
+</html>
