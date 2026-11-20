@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { initializeDatabase, propertyArgs, saveProperty } from './database.mjs';
-import { createAdminAuth, codeLifetime, requestCooldown, emailOK, normalizeDigits } from './admin-auth.mjs';
+import { createAdminAuth, emailOK, normalizeDigits } from './admin-auth.mjs';
 import { cities, types, statuses, stages, samples, siteDefaults } from './catalog.mjs';
 
 
@@ -24,7 +24,7 @@ const dateInUAE = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai
 const phoneOK = phone => /^\+?[\d ()-]+$/.test(phone) && phone.replace(/\D/g, '').length >= 7;
 const imageOK = path => /^\/images\/[\w.-]+\.(jpe?g|webp|png)$/i.test(path) || (() => { try { const u = new URL(path); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; } })();
 
-export async function createHandler({ db, adminEmail = '', deliverCode, onDeliveryError, authClock, authSecret, defer, clientIp = req => req.socket.remoteAddress, seed = true, secure = false } = {}) {
+export async function createHandler({ db, adminUsername, adminPasswordHash, authClock, clientIp = req => req.socket.remoteAddress, seed = true, secure = false } = {}) {
   await initializeDatabase(db, seed);
   const set = (key,value) => db.run('INSERT OR REPLACE INTO settings VALUES (?,?)',[key,value]);
   const get = key => db.get('SELECT value FROM settings WHERE key=?',[key]);
@@ -32,11 +32,11 @@ export async function createHandler({ db, adminEmail = '', deliverCode, onDelive
   const property = id => db.get('SELECT * FROM properties WHERE id=?',[id]);
   const leads = () => db.all('SELECT leads.*, properties.title AS property_title FROM leads LEFT JOIN properties ON properties.id=leads.property_id ORDER BY created_at DESC');
   const site = async () => ({ ...siteDefaults, ...JSON.parse((await get('site'))?.value || '{}') });
-  const adminAuth = await createAdminAuth({ db, adminEmail, deliverCode, onDeliveryError, secure, clock: authClock, authSecret, defer });
+  const adminAuth = await createAdminAuth({ db, adminUsername, adminPasswordHash, secure, clock: authClock });
   const sampleIds = new Set(samples.map(p => p.id));
   const withDemoFlag = p => ({ ...p, demo: sampleIds.has(p.id) });
   async function limit(req, scope, max, period) {
-    const time = Date.now(), key = createHash('sha256').update(`${authSecret || ''}:${scope}:${clientIp(req) || 'unknown'}`).digest('hex');
+    const time = Date.now(), key = createHash('sha256').update(`${scope}:${clientIp(req) || 'unknown'}`).digest('hex');
     if (Math.random() < 0.02) await db.run('DELETE FROM rate_limits WHERE expires<=?', [time]);
     const row = await db.get(`INSERT INTO rate_limits VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET
       count=CASE WHEN expires<=? THEN 1 ELSE count+1 END,
@@ -89,21 +89,13 @@ export async function createHandler({ db, adminEmail = '', deliverCode, onDelive
         return json(res, 201, { reference: id.split('-')[0].toUpperCase() });
       }
       if (method === 'GET' && path === '/api/admin/login/status') return json(res, 200, { configured: adminAuth.ready });
-      if (method === 'POST' && ['/api/admin/login/request-code', '/api/admin/login/verify-code'].includes(path)) {
-        if (!adminAuth.ready) throw fail(503, 'لم يُضبط الدخول بالبريد الإلكتروني على الخادم بعد.');
-        const requesting = path.endsWith('/request-code');
-        await limit(req, requesting ? 'login-request' : 'login-verify', requesting ? 10 : 25, 900_000);
-        const input = await body(req), email = clean(input.email, 180);
-        if (!emailOK(email)) throw fail(400, 'أدخل بريدًا إلكترونيًا صالحًا.');
-        if (requesting) {
-          res.setHeader('Set-Cookie', await adminAuth.requestCode(req, email));
-          return json(res, 202, { ok: true, retryAfter: requestCooldown, expiresIn: codeLifetime });
-        }
-        const code = normalizeDigits(clean(input.code, 6));
-        if (!/^\d{6}$/.test(code)) throw fail(400, 'أدخل رمزًا من 6 أرقام.');
-        const cookies = await adminAuth.verifyCode(req, email, code);
-        if (!cookies) throw fail(401, 'الرمز غير صحيح أو لم يعد صالحًا. تحقّق منه أو اطلب رمزًا جديدًا.');
-        res.setHeader('Set-Cookie', cookies);
+      if (method === 'POST' && path === '/api/admin/login') {
+        if (!adminAuth.ready) throw fail(503, 'لم تُضبط بيانات دخول الإدارة على الخادم بعد.');
+        const input = await body(req);
+        await limit(req, 'admin-password-login', 10, 900_000);
+        const cookie = await adminAuth.login(req, input);
+        if (!cookie) throw fail(401, 'اسم المستخدم أو كلمة المرور غير صحيحة.');
+        res.setHeader('Set-Cookie', cookie);
         return json(res, 200, { ok: true });
       }
       if (path.startsWith('/api/admin/')) {

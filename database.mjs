@@ -6,10 +6,6 @@ const schema = [
   'CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, expires INTEGER NOT NULL)',
   'CREATE INDEX IF NOT EXISTS leads_stage_created ON leads(stage, created_at)',
-  'CREATE TABLE IF NOT EXISTS login_challenges (token TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER NOT NULL)',
-  'CREATE INDEX IF NOT EXISTS login_challenge_expiry ON login_challenges(expires)',
-  'CREATE TABLE IF NOT EXISTS login_deliveries (id TEXT PRIMARY KEY, identity TEXT NOT NULL, sent_at INTEGER NOT NULL)',
-  'CREATE INDEX IF NOT EXISTS login_delivery_time ON login_deliveries(identity, sent_at)',
   'CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires INTEGER NOT NULL)',
   'CREATE INDEX IF NOT EXISTS rate_limit_expiry ON rate_limits(expires)',
 ];

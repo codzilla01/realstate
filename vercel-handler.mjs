@@ -1,7 +1,7 @@
 import { isIP } from 'node:net';
 import { createHandler } from './application.mjs';
 import { cloudDatabase } from './database.mjs';
-import { mailErrorSummary, setupAdminMail } from './mail.mjs';
+import { readAdminConfig } from './admin-auth.mjs';
 
 const routePattern = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/;
 export function vercelPath(url) {
@@ -21,31 +21,22 @@ const ip = req => {
   return isIP(address) ? address : req.socket.remoteAddress;
 };
 
-async function initialize(env, defer) {
+async function initialize(env) {
   const db = await cloudDatabase(env);
-  let mail = {};
-  const authSecret = env.AUTH_SECRET?.trim();
-  if (authSecret && authSecret.length >= 32) {
-    try { mail = await setupAdminMail(env); }
-    catch (error) { console.warn(`Admin sign-in disabled: ${mailErrorSummary(error)}`); }
-  } else {
-    console.warn('Admin sign-in disabled: configure AUTH_SECRET with at least 32 characters.');
-  }
   try {
     return await createHandler({
-      ...mail, db, authSecret, defer, secure:true, clientIp:ip, seed:env.SEED_DEMO === 'true',
-      onDeliveryError: error => console.error(`Admin email delivery failed: ${mailErrorSummary(error)}`),
+      ...readAdminConfig(env), db, secure:true, clientIp:ip, seed:env.SEED_DEMO === 'true',
     });
   } catch (error) { db.close(); throw error; }
 }
 
-export function createVercelHandler({ env = process.env, defer, init = initialize } = {}) {
+export function createVercelHandler({ env = process.env, init = initialize } = {}) {
   let pending, retryAt = 0;
   return async (req, res) => {
     const path = vercelPath(req.url);
     if (!path) return json(res,404,'المسار غير موجود.');
     if (!pending && Date.now() >= retryAt) {
-      pending = Promise.resolve().then(() => init(env,defer)).catch(() => {
+      pending = Promise.resolve().then(() => init(env)).catch(() => {
         console.error('Vercel API initialization failed. Check TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and database availability.');
         retryAt = Date.now()+10_000;
         pending = undefined;
