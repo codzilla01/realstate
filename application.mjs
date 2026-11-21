@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { CloudDatabaseError, databaseErrorBody } from './cloud-database-errors.mjs';
 import { initializeDatabase, propertyArgs, saveProperty } from './database.mjs';
-import { createAdminAuth, emailOK, normalizeDigits } from './admin-auth.mjs';
+import { createAdminAuth, googleCallbackPath, emailOK, normalizeDigits } from './admin-auth.mjs';
 import { cities, types, statuses, stages, samples, siteDefaults } from './catalog.mjs';
 
 
@@ -25,7 +25,7 @@ const dateInUAE = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai
 const phoneOK = phone => /^\+?[\d ()-]+$/.test(phone) && phone.replace(/\D/g, '').length >= 7;
 const imageOK = path => /^\/images\/[\w.-]+\.(jpe?g|webp|png)$/i.test(path) || (() => { try { const u = new URL(path); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; } })();
 
-export async function createHandler({ db, adminUsername, adminPasswordHash, authClock, clientIp = req => req.socket.remoteAddress, seed = true, secure = false } = {}) {
+export async function createHandler({ db, google, googleExchange, authClock, clientIp = req => req.socket.remoteAddress, seed = true, secure = false } = {}) {
   await initializeDatabase(db, seed);
   const set = (key,value) => db.run('INSERT OR REPLACE INTO settings VALUES (?,?)',[key,value]);
   const get = key => db.get('SELECT value FROM settings WHERE key=?',[key]);
@@ -33,7 +33,7 @@ export async function createHandler({ db, adminUsername, adminPasswordHash, auth
   const property = id => db.get('SELECT * FROM properties WHERE id=?',[id]);
   const leads = () => db.all('SELECT leads.*, properties.title AS property_title FROM leads LEFT JOIN properties ON properties.id=leads.property_id ORDER BY created_at DESC');
   const site = async () => ({ ...siteDefaults, ...JSON.parse((await get('site'))?.value || '{}') });
-  const adminAuth = await createAdminAuth({ db, adminUsername, adminPasswordHash, secure, clock: authClock });
+  const adminAuth = await createAdminAuth({ db, google, googleExchange, secure, clock: authClock });
   const sampleIds = new Set(samples.map(p => p.id));
   const withDemoFlag = p => ({ ...p, demo: sampleIds.has(p.id) });
   async function limit(req, scope, max, period) {
@@ -89,15 +89,23 @@ export async function createHandler({ db, adminUsername, adminPasswordHash, auth
         await db.run('INSERT INTO leads VALUES (?,?,?,?,?,?,?,?,?,?,?)',[id,propertyId,name,phone,email,date,clean(input.message,1800),'new','','',now()]);
         return json(res, 201, { reference: id.split('-')[0].toUpperCase() });
       }
-      if (method === 'GET' && path === '/api/admin/login/status') return json(res, 200, { configured: adminAuth.ready });
-      if (method === 'POST' && path === '/api/admin/login') {
-        if (!adminAuth.ready) throw fail(503, 'لم تُضبط بيانات دخول الإدارة على الخادم بعد.');
-        const input = await body(req);
-        await limit(req, 'admin-password-login', 10, 900_000);
-        const cookie = await adminAuth.login(req, input);
-        if (!cookie) throw fail(401, 'اسم المستخدم أو كلمة المرور غير صحيحة.');
-        res.setHeader('Set-Cookie', cookie);
-        return json(res, 200, { ok: true });
+      if (method === 'GET' && path === '/api/admin/login/status') return json(res,200,{configured:adminAuth.ready,onConfiguredHost:adminAuth.correctHost(req)});
+      if (method === 'GET' && (path === '/api/admin/login/google' || path === googleCallbackPath)) {
+        res.setHeader('Referrer-Policy','no-referrer');
+        const redirect = (location,cookies) => {
+          if (cookies) res.setHeader('Set-Cookie',cookies);
+          res.writeHead(303,{Location:location,'Cache-Control':'no-store'});
+          return res.end();
+        };
+        if (!adminAuth.correctHost(req)) return redirect('/admin?login=unavailable');
+        if (path === googleCallbackPath) {
+          const result = await adminAuth.finish(req,new URL(req.url,'http://localhost').searchParams);
+          return redirect(result.status === 'ok' ? '/admin' : `/admin?login=${result.status}`,result.cookies);
+        }
+        try { await limit(req,'admin-google-start',20,900_000); }
+        catch (error) { if (error.status === 429) return redirect('/admin?login=limited'); throw error; }
+        const start = adminAuth.begin(req);
+        return redirect(start.location,start.cookie);
       }
       if (path.startsWith('/api/admin/')) {
         res.setHeader('Content-Security-Policy', `${res.getHeader('Content-Security-Policy')}; frame-ancestors 'none'`);

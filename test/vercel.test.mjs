@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { localDatabase } from '../local-database.mjs';
 import { createHandler } from '../application.mjs';
 import { createVercelHandler, vercelPath } from '../vercel-handler.mjs';
-import { hashAdminPassword } from '../admin-auth.mjs';
+import { google, fakeGoogleExchange, testFetch, login, testHost } from '../test-support/google.mjs';
 
 async function listen(handler) {
   const server = createServer(handler);
@@ -17,12 +17,10 @@ async function listen(handler) {
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
     base,
-    fetch: (route,init) => fetch(base+route,init),
+    fetch: (route,init) => testFetch(base+route,init),
     close: () => new Promise(resolve => server.close(resolve)),
   };
 }
-const cookiePair = response => response.headers.getSetCookie()[0]?.split(';')[0];
-const credentials = {username:'vercel-test',password:'sample-vercel-password-only'};
 const post = (data,cookie,origin) => ({method:'POST',headers:{'content-type':'application/json', ...(cookie && {cookie}), ...(origin && {origin})},body:JSON.stringify(data)});
 
 test('the deployed entry is loadable by the CommonJS launcher', () => {
@@ -39,17 +37,16 @@ test('rewritten Vercel URLs keep the full API path and cannot route to local fil
   assert.equal(vercelPath('/admin'),null);
 });
 
-test('Vercel instances share catalog, inquiries and password-based sessions', async () => {
+test('Vercel instances share catalog, inquiries and Google-authenticated sessions', async () => {
   const dir = await mkdtemp(join(tmpdir(),'almaktab-vercel-'));
   const dbPath = join(dir,'shared.sqlite'), connections = [], instances = [];
-  const adminPasswordHash = await hashAdminPassword(credentials.password);
   try {
     const getInstance = async () => {
       // Exercise the async adapter contract using two independent database connections.
       const local = localDatabase(dbPath);
       connections.push(local);
       const db = Object.fromEntries(['get','all','run','batch'].map(name => [name, async (...args) => local[name](...args)]));
-      const options = { db, adminUsername:credentials.username, adminPasswordHash, seed:true, secure:true };
+      const options = { db, google, googleExchange:fakeGoogleExchange, seed:true, secure:true };
       const handler = createVercelHandler({init:() => createHandler(options)});
       const instance = await listen(handler);
       instances.push(instance);
@@ -58,17 +55,18 @@ test('Vercel instances share catalog, inquiries and password-based sessions', as
     const first = await getInstance(), second = await getInstance();
     const site = await (await first.fetch('/api/almaktab.js?__route=site')).json();
     assert.equal(site.properties.length,3);
-    const inquiry = await first.fetch('/api/almaktab.js?__route=inquiries',post({name:'عميل تجريبي',phone:'+971 50 555 5555',propertyId:site.properties[0].id},undefined,first.base));
+    const inquiry = await first.fetch('/api/almaktab.js?__route=inquiries',post({name:'عميل تجريبي',phone:'+971 50 555 5555',propertyId:site.properties[0].id},undefined,`https://${testHost}`));
     assert.equal(inquiry.status,201);
-    const request = await first.fetch('/api/almaktab.js?__route=admin/login',post(credentials,undefined,first.base));
-    assert.equal(request.status,200);
-    assert.match(request.headers.get('set-cookie'),/; Secure$/);
-    const session = cookiePair(request);
+    const rewritten = instance => (path,init) => {
+      const [route,query] = path.split('?');
+      return instance.fetch(`/api/almaktab.js?__route=${route.slice(5)}${query ? `&${query}` : ''}`,init);
+    };
+    const session = await login(rewritten(first),rewritten(second));
     for (const instance of [first,second]) {
       const admin = await (await instance.fetch('/api/almaktab.js?__route=admin/data',{headers:{cookie:session}})).json();
       assert.equal(admin.leads[0].property_id,site.properties[0].id);
     }
-    assert.equal((await second.fetch('/api/almaktab.js?__route=admin/logout',post({},session,second.base))).status,200);
+    assert.equal((await second.fetch('/api/almaktab.js?__route=admin/logout',post({},session,`https://${testHost}`))).status,200);
     assert.equal((await first.fetch('/api/almaktab.js?__route=admin/data',{headers:{cookie:session}})).status,401);
   } finally {
     await Promise.all(instances.map(instance => instance.close()));

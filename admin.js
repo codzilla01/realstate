@@ -1,9 +1,7 @@
 import { $, $$, icon, icons, escape as e, translations as t, options, num, money, localDate, uaeToday, api, setupDialog, toast, busy, errorIn } from './ui.js';
 
 icons();
-const login = $('#login'), shell = $('#admin-shell'), content = $('#admin-content'), loginForm = $('#login-form');
-const passwordInput = $('#admin-password'), passwordToggle = $('#toggle-password');
-let authPending = false, loginConfigured = true;
+const login = $('#login'), shell = $('#admin-shell'), content = $('#admin-content'), loginControls = $('#login-controls'), googleLogin = $('#google-login');
 $('#login-frame-note').hidden = window.self === window.top;
 const propertyEditor = $('#property-editor'), leadEditor = $('#lead-editor'), propertyForm = $('#property-form'), leadForm = $('#lead-form');
 const tabs = ['overview', 'inventory', 'leads', 'site'];
@@ -76,7 +74,7 @@ function render() {
   if (tab === 'leads') renderLeads();
 }
 function signedOut() {
-  data = null; shell.hidden = true; login.hidden = false; resetLogin(); content.replaceChildren();
+  data = null; shell.hidden = true; login.hidden = false; errorIn(loginControls); content.replaceChildren();
   propertyForm.reset(); leadForm.reset(); $('#lead-contact').replaceChildren();
   for (const dialog of [propertyEditor, leadEditor]) if (dialog.open) dialog.close();
   $('.skip').href = '#admin-main';
@@ -86,55 +84,38 @@ async function refresh() {
   login.hidden = true; shell.hidden = false; $('.skip').href = '#workspace'; render();
 }
 async function initialLoad() {
+  const url = new URL(location.href);
+  const result = url.searchParams.get('login');
+  if (result) { url.searchParams.delete('login'); history.replaceState(null,'',url); }
   try { await refresh(); }
   catch (err) {
-    if (err.status !== 401) { errorIn(loginForm, err.message); return; }
+    if (err.status !== 401) { googleLogin.hidden = true; errorIn(loginControls,err.message); return; }
     try {
-      const { configured } = await api('/api/admin/login/status');
-      if (configured === false) {
-        loginConfigured = false;
+      const {configured,onConfiguredHost} = await api('/api/admin/login/status');
+      if (!configured || !onConfiguredHost) {
         const notice = $('#login-unavailable');
-        notice.textContent = 'لم تُضبط بيانات دخول الإدارة في هذه النسخة. اضبط اسم المستخدم وتجزئة كلمة المرور على الخادم ثم أعد النشر.';
+        notice.textContent = configured ? 'افتح لوحة الإدارة من نطاق الموقع المعتمد لتسجيل الدخول عبر Google.' : 'لم يُفعّل دخول Google بعد. يحتاج الخادم إلى بيانات تطبيق Google OAuth والحساب المسموح.';
         notice.hidden = false;
-        loginForm.elements.username.disabled = true;
-        passwordInput.disabled = true;
-        passwordToggle.disabled = true;
-        busy(loginForm, true);
+        googleLogin.hidden = true;
+      } else {
+        const messages = {
+          failed:'تعذر إتمام تسجيل الدخول. ابدأ المحاولة من جديد.',
+          account:'هذا الحساب غير مخوّل بإدارة الموقع. اختر حساب Google المعتمد.',
+          cancelled:'أُلغي تسجيل الدخول. يمكنك المحاولة مرة أخرى.',
+          limited:'محاولات كثيرة. انتظر قليلًا قبل المحاولة مرة أخرى.',
+          unavailable:'الدخول عبر Google غير متاح على هذا النطاق.',
+        };
+        if (Object.hasOwn(messages,result)) errorIn(loginControls,messages[result]);
       }
-    } catch (statusError) { errorIn(loginForm, statusError.message); }
+    } catch (statusError) { errorIn(loginControls,statusError.message); }
   }
 }
 function handleError(err, form) {
-  if (err.status === 401 && form !== loginForm) { signedOut(); errorIn(loginForm, 'انتهت جلسة الإدارة. سجّل الدخول مجددًا.'); }
-  else if (form) errorIn(form, err.message); else toast(err.message);
+  if (err.status === 401) { signedOut(); errorIn(loginControls,'انتهت جلسة الإدارة. سجّل الدخول مجددًا.'); }
+  else if (form) errorIn(form,err.message); else toast(err.message);
 }
-function showPassword(show) {
-  passwordInput.type = show ? 'text' : 'password';
-  passwordToggle.setAttribute('aria-pressed',String(show));
-  passwordToggle.textContent = show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور';
-}
-function resetLogin() {
-  loginForm.reset();
-  showPassword(false);
-  errorIn(loginForm);
-}
-passwordToggle.addEventListener('click', () => showPassword(passwordInput.type === 'password'));
-loginForm.addEventListener('submit', async ev => {
-  ev.preventDefault();
-  if (authPending || !loginConfigured) return;
-  authPending = true; busy(loginForm,true); errorIn(loginForm);
-  try {
-    await api('/api/admin/login', {method:'POST',data:{username:loginForm.elements.username.value.trim(),password:passwordInput.value}});
-    resetLogin();
-    await refresh();
-    $('#workspace').focus();
-  } catch (err) {
-    errorIn(loginForm,err.message);
-    if (err.status === 401) { passwordInput.value = ''; showPassword(false); passwordInput.focus(); }
-  } finally { authPending = false; busy(loginForm,!loginConfigured); }
-});
 $('#logout').addEventListener('click', async () => {
-  try { await api('/api/admin/logout',{method:'POST',data:{}}); signedOut(); loginForm.elements.username.focus(); }
+  try { await api('/api/admin/logout',{method:'POST',data:{}}); signedOut(); googleLogin.focus(); }
   catch (err) { handleError(err); }
 });
 function openProperty(p) {
