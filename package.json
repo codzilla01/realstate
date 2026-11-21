@@ -10,10 +10,10 @@
     "start": "node --env-file-if-exists=.env tools/serve-local.mjs",
     "test": "node --test",
     "build": "node tools/build-static.mjs",
-    "admin:hash-password": "node tools/hash-admin-password.mjs",
     "db:check": "node --env-file-if-exists=.env tools/check-database.mjs"
   },
   "dependencies": {
-    "@libsql/client": "^0.18.0"
+    "@libsql/client": "^0.18.0",
+    "jose": "^6.2.18"
   }
 }
