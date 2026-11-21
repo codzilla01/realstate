@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { localDatabase } from '../local-database.mjs';
 import { createHandler } from '../application.mjs';
 import { createVercelHandler, vercelPath } from '../vercel-handler.mjs';
-import { google, fakeGoogleExchange, testFetch, login, testHost } from '../test-support/google.mjs';
+import { credentials, testFetch, login, testHost } from '../test-support/password.mjs';
 
 async function listen(handler) {
   const server = createServer(handler);
@@ -37,7 +37,7 @@ test('rewritten Vercel URLs keep the full API path and cannot route to local fil
   assert.equal(vercelPath('/admin'),null);
 });
 
-test('Vercel instances share catalog, inquiries and Google-authenticated sessions', async () => {
+test('Vercel instances share catalog, inquiries and password-authenticated sessions', async () => {
   const dir = await mkdtemp(join(tmpdir(),'almaktab-vercel-'));
   const dbPath = join(dir,'shared.sqlite'), connections = [], instances = [];
   try {
@@ -46,7 +46,7 @@ test('Vercel instances share catalog, inquiries and Google-authenticated session
       const local = localDatabase(dbPath);
       connections.push(local);
       const db = Object.fromEntries(['get','all','run','batch'].map(name => [name, async (...args) => local[name](...args)]));
-      const options = { db, google, googleExchange:fakeGoogleExchange, seed:true, secure:true };
+      const options = { db, credentials, seed:true, secure:true };
       const handler = createVercelHandler({init:() => createHandler(options)});
       const instance = await listen(handler);
       instances.push(instance);
@@ -61,7 +61,7 @@ test('Vercel instances share catalog, inquiries and Google-authenticated session
       const [route,query] = path.split('?');
       return instance.fetch(`/api/almaktab.js?__route=${route.slice(5)}${query ? `&${query}` : ''}`,init);
     };
-    const session = await login(rewritten(first),rewritten(second));
+    const session = await login(rewritten(first));
     for (const instance of [first,second]) {
       const admin = await (await instance.fetch('/api/almaktab.js?__route=admin/data',{headers:{cookie:session}})).json();
       assert.equal(admin.leads[0].property_id,site.properties[0].id);
