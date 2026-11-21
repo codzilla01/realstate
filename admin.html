@@ -13,13 +13,15 @@
   <a class="skip" href="#admin-main">انتقل للمحتوى</a>
   <div id="login" class="login-shell">
     <aside class="login-art"><img src="/images/hero.jpg" alt=""><div class="login-art-copy"><span lang="en" dir="ltr">AL MAKTAB / OPERATIONS STUDIO</span><h2>مساحة للعمل،<br>تليق بما تديره<span>.</span></h2></div></aside>
-    <main class="login-content" id="admin-main"><a class="brand" href="/"><span class="brand-mark" data-icon="brand"></span><span><b>المكتب العقاري</b><small lang="en" dir="ltr">AL MAKTAB REAL ESTATE</small></span></a><div class="login-intro"><div class="overline"><i></i>استوديو الإدارة</div><h1 id="login-title">أهلاً بعودتك<span>.</span></h1><p id="login-intro">تابع باستخدام حساب Google المعتمد لإدارة المكتب.</p></div>
+    <main class="login-content" id="admin-main"><a class="brand" href="/"><span class="brand-mark" data-icon="brand"></span><span><b>المكتب العقاري</b><small lang="en" dir="ltr">AL MAKTAB REAL ESTATE</small></span></a><div class="login-intro"><div class="overline"><i></i>استوديو الإدارة</div><h1 id="login-title">أهلاً بعودتك<span>.</span></h1><p id="login-intro">أدخل بيانات حساب الإدارة للمتابعة.</p></div>
       <p id="login-unavailable" class="login-notice" role="status" hidden></p>
-      <p id="login-frame-note" class="login-notice" hidden>إذا لم يثبت تسجيل الدخول في المعاينة، <a href="/admin" target="_blank" rel="noopener">افتح اللوحة في تبويب مستقل</a>.</p>
-      <div id="login-controls" class="admin-login-actions">
-        <a href="/api/admin/login/google" id="google-login" class="button primary"><span data-icon="lock"></span> الدخول عبر Google <span data-icon="arrow-left"></span></a>
+      <p id="login-frame-note" class="login-notice" hidden>إذا لم تثبت الجلسة في المعاينة، <a href="/admin" target="_blank" rel="noopener">افتح اللوحة في تبويب مستقل</a>.</p>
+      <form id="login-controls" class="admin-login-actions">
+        <label>اسم المستخدم<input name="username" autocomplete="username" required maxlength="100" dir="ltr"></label>
+        <label>كلمة المرور<input name="password" type="password" autocomplete="current-password" required maxlength="1024" dir="ltr"></label>
         <p class="form-error" role="alert" hidden></p>
-      </div><a class="return-site" href="/">العودة للموقع <span data-icon="arrow-up"></span></a></main>
+        <button class="button primary" type="submit"><span data-icon="lock"></span> تسجيل الدخول <span data-icon="arrow-left"></span></button>
+      </form><a class="return-site" href="/">العودة للموقع <span data-icon="arrow-up"></span></a></main>
   </div>
   <div class="admin-shell" id="admin-shell" hidden>
     <aside class="admin-sidebar"><a class="brand" href="/"><span class="brand-mark" data-icon="brand"></span><span><b>المكتب العقاري</b><small lang="en" dir="ltr">OPERATIONS STUDIO</small></span></a><div class="sidebar-caption">مساحة العمل</div><nav class="admin-nav" aria-label="أقسام الإدارة"><a href="#overview" data-tab="overview"><span data-icon="grid"></span>نظرة عامة</a><a href="#inventory" data-tab="inventory"><span data-icon="building"></span>العقارات</a><a href="#leads" data-tab="leads"><span data-icon="inbox"></span>الطلبات <span class="nav-count" id="nav-count" hidden></span></a><a href="#site" data-tab="site"><span data-icon="edit"></span>الموقع</a></nav><div class="sidebar-base"><a href="/" target="_blank" rel="noopener"><span data-icon="arrow-up"></span>عرض الموقع</a><button id="logout" type="button"><span data-icon="logout"></span>تسجيل الخروج</button></div></aside>

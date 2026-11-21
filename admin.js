@@ -1,7 +1,7 @@
 import { $, $$, icon, icons, escape as e, translations as t, options, num, money, localDate, uaeToday, api, setupDialog, toast, busy, errorIn } from './ui.js';
 
 icons();
-const login = $('#login'), shell = $('#admin-shell'), content = $('#admin-content'), loginControls = $('#login-controls'), googleLogin = $('#google-login');
+const login = $('#login'), shell = $('#admin-shell'), content = $('#admin-content'), loginControls = $('#login-controls');
 $('#login-frame-note').hidden = window.self === window.top;
 const propertyEditor = $('#property-editor'), leadEditor = $('#lead-editor'), propertyForm = $('#property-form'), leadForm = $('#lead-form');
 const tabs = ['overview', 'inventory', 'leads', 'site'];
@@ -75,6 +75,7 @@ function render() {
 }
 function signedOut() {
   data = null; shell.hidden = true; login.hidden = false; errorIn(loginControls); content.replaceChildren();
+  loginControls.reset();
   propertyForm.reset(); leadForm.reset(); $('#lead-contact').replaceChildren();
   for (const dialog of [propertyEditor, leadEditor]) if (dialog.open) dialog.close();
   $('.skip').href = '#admin-main';
@@ -84,28 +85,22 @@ async function refresh() {
   login.hidden = true; shell.hidden = false; $('.skip').href = '#workspace'; render();
 }
 async function initialLoad() {
-  const url = new URL(location.href);
-  const result = url.searchParams.get('login');
-  if (result) { url.searchParams.delete('login'); history.replaceState(null,'',url); }
   try { await refresh(); }
   catch (err) {
-    if (err.status !== 401) { googleLogin.hidden = true; errorIn(loginControls,err.message); return; }
+    if (err.status !== 401) {
+      loginControls.hidden = true;
+      $('#login-unavailable').textContent = err.message;
+      $('#login-unavailable').hidden = false;
+      return;
+    }
     try {
-      const {configured,onConfiguredHost} = await api('/api/admin/login/status');
-      if (!configured || !onConfiguredHost) {
-        const notice = $('#login-unavailable');
-        notice.textContent = configured ? 'افتح لوحة الإدارة من نطاق الموقع المعتمد لتسجيل الدخول عبر Google.' : 'لم يُفعّل دخول Google بعد. يحتاج الخادم إلى بيانات تطبيق Google OAuth والحساب المسموح.';
-        notice.hidden = false;
-        googleLogin.hidden = true;
+      const {configured} = await api('/api/admin/login/status');
+      if (!configured) {
+        $('#login-unavailable').textContent = 'لم يُفعّل دخول الإدارة بعد. أضف اسم المستخدم وكلمة المرور في إعدادات الخادم.';
+        $('#login-unavailable').hidden = false;
+        loginControls.hidden = true;
       } else {
-        const messages = {
-          failed:'تعذر إتمام تسجيل الدخول. ابدأ المحاولة من جديد.',
-          account:'هذا الحساب غير مخوّل بإدارة الموقع. اختر حساب Google المعتمد.',
-          cancelled:'أُلغي تسجيل الدخول. يمكنك المحاولة مرة أخرى.',
-          limited:'محاولات كثيرة. انتظر قليلًا قبل المحاولة مرة أخرى.',
-          unavailable:'الدخول عبر Google غير متاح على هذا النطاق.',
-        };
-        if (Object.hasOwn(messages,result)) errorIn(loginControls,messages[result]);
+        loginControls.hidden = false;
       }
     } catch (statusError) { errorIn(loginControls,statusError.message); }
   }
@@ -114,8 +109,21 @@ function handleError(err, form) {
   if (err.status === 401) { signedOut(); errorIn(loginControls,'انتهت جلسة الإدارة. سجّل الدخول مجددًا.'); }
   else if (form) errorIn(form,err.message); else toast(err.message);
 }
+loginControls.addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget, values = new FormData(form);
+  busy(form,true); errorIn(form);
+  try {
+    await api('/api/admin/login',{method:'POST',data:{username:values.get('username'),password:values.get('password')}});
+    form.reset();
+    await refresh();
+  } catch (err) {
+    const message = err.status === 401 ? 'اسم المستخدم أو كلمة المرور غير صحيحة.' : err.status === 429 ? 'محاولات كثيرة. انتظر 15 دقيقة ثم حاول مجددًا.' : err.message;
+    errorIn(form,message);
+  } finally { busy(form,false); }
+});
 $('#logout').addEventListener('click', async () => {
-  try { await api('/api/admin/logout',{method:'POST',data:{}}); signedOut(); googleLogin.focus(); }
+  try { await api('/api/admin/logout',{method:'POST',data:{}}); signedOut(); $('input[name="username"]',loginControls).focus(); }
   catch (err) { handleError(err); }
 });
 function openProperty(p) {

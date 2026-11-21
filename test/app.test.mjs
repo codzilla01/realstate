@@ -1,17 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../local-server.mjs';
-import { google, fakeGoogleExchange, testFetch, startPath, callbackPath, begin, login } from '../test-support/google.mjs';
+import { credentials, testFetch, login } from '../test-support/password.mjs';
 
 const listing = {title:'دار النخيل', type:'villa', city:'dubai', district:'البراري', price:5000000, beds:4, baths:5, area:520, status:'available', image:'/images/palm.jpg', description:'دار معاصرة', featured:true, published:false};
 const person = {name:'عميل اختبار', phone:'+971 50 555 5555', email:'test@example.com', message:'موعد لمعاينة المنزل'};
 async function start(options = {}) {
-  const server = await createApp({ google, googleExchange:fakeGoogleExchange, ...options });
+  const server = await createApp({ credentials, ...options });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
@@ -67,8 +66,9 @@ test('public files, safe validation, and session boundaries', async () => {
     assert.equal((await req('/')).res.status, 200);
     const adminPage = await req('/admin');
     assert.equal(adminPage.res.status, 200);
-    assert.match(adminPage.json, /href="\/api\/admin\/login\/google"/);
-    assert.doesNotMatch(adminPage.json, /one-time-code|scrypt:|current-password/);
+    assert.match(adminPage.json, /name="username"/);
+    assert.match(adminPage.json, /autocomplete="current-password"/);
+    assert.doesNotMatch(adminPage.json, /login\/google|accounts\.google/);
     assert.equal((await req('/application.mjs')).res.status, 404);
     assert.equal((await req('/local-server.mjs')).res.status, 404);
     assert.equal((await req('/api/site')).json.properties.length, 3);
@@ -84,54 +84,28 @@ test('public files, safe validation, and session boundaries', async () => {
   } finally { await app.close(); }
 });
 
-test('Google sign-in rejects unverified or unauthorized accounts and the old password endpoint', async () => {
-  const app = await start();
+test('username and password login rejects invalid credentials and returns a secure session', async () => {
+  const app = await start({secure:true});
   try {
     const {req} = app;
-    assert.deepEqual((await req('/api/admin/login/status')).json,{configured:true,onConfiguredHost:true});
-    assert.deepEqual((await req('/api/admin/login/status',{headers:{host:'preview.example'}})).json,{configured:true,onConfiguredHost:false});
-    assert.equal((await req(startPath,{headers:{host:'preview.example'}})).res.headers.get('location'),'/admin?login=unavailable');
-    for (const code of ['other','unverified']) {
-      const flow = await begin(app.fetch);
-      const result = await req(`${callbackPath}?code=${code}&state=${flow.auth.searchParams.get('state')}`,{cookie:flow.cookie});
-      assert.equal(result.res.headers.get('location'),'/admin?login=account');
-      assert.doesNotMatch(result.res.headers.get('set-cookie'),/almaktab_session/);
-    }
-    const cookie = await login(app.fetch);
-    assert.equal((await req('/api/admin/login',{method:'POST',cookie,data:{username:'admin',password:'not-accepted'}})).res.status,404);
-    assert.equal((await req('/api/admin/data',{cookie,headers:{host:'preview.example'}})).res.status,401);
+    assert.deepEqual((await req('/api/admin/login/status')).json,{configured:true});
+    for (const data of [
+      {username:'wrong-user',password:credentials.password},
+      {username:credentials.username,password:'wrong-password'},
+    ]) assert.equal((await req('/api/admin/login',{method:'POST',data})).res.status,401);
+    const response = await req('/api/admin/login',{method:'POST',data:credentials});
+    assert.equal(response.res.status,200);
+    assert.match(response.res.headers.get('set-cookie'),/HttpOnly; SameSite=Strict; Max-Age=28800; Secure/);
+    assert.equal((await req('/api/admin/data',{cookie:response.res.headers.get('set-cookie').split(';')[0]})).res.status,200);
+    assert.equal((await req('/api/admin/login/google')).res.status,401);
   } finally { await app.close(); }
 });
 
-test('OAuth flow checks browser cookie, signed state, nonce, PKCE and expiry', async () => {
-  let now = Date.now(), exchange;
-  const app = await start({authClock:() => now,googleExchange:async data => { exchange = data; return fakeGoogleExchange(data); }});
-  try {
-    const flow = await begin(app.fetch), state = flow.auth.searchParams.get('state');
-    const callback = `${callbackPath}?code=permitted&state=${state}`;
-    for (const cookie of ['',`${flow.cookie.slice(0,-1)}!`]) {
-      const rejected = await app.req(callback,{cookie});
-      assert.equal(rejected.res.headers.get('location'),'/admin?login=failed');
-    }
-    assert.equal((await app.req(`${callback}&state=${state}`,{cookie:flow.cookie})).res.headers.get('location'),'/admin?login=failed');
-    assert.equal(exchange,undefined);
-    const accepted = await app.req(callback,{cookie:flow.cookie});
-    assert.equal(accepted.res.headers.get('location'),'/admin');
-    assert.equal(exchange.nonce,flow.auth.searchParams.get('nonce'));
-    assert.equal(flow.auth.searchParams.get('code_challenge_method'),'S256');
-    assert.equal(flow.auth.searchParams.get('code_challenge'),createHash('sha256').update(exchange.verifier).digest('base64url'));
-    assert.equal(flow.auth.searchParams.get('scope'),'openid email');
-    assert.equal(flow.auth.searchParams.get('redirect_uri'),google.redirectUri);
-    now += 5*60_000;
-    assert.equal((await app.req(callback,{cookie:flow.cookie})).res.headers.get('location'),'/admin?login=failed');
-  } finally { await app.close(); }
-});
-
-test('Google login initiation is rate limited', async () => {
+test('admin password login is rate limited', async () => {
   const app = await start();
   try {
-    for (let i=0;i<20;i++) assert.match((await app.req(startPath)).res.headers.get('location'),/^https:\/\/accounts\.google\.com/);
-    assert.equal((await app.req(startPath)).res.headers.get('location'),'/admin?login=limited');
+    for (let i=0;i<5;i++) assert.equal((await app.req('/api/admin/login',{method:'POST',data:{username:credentials.username,password:'incorrect-password'}})).res.status,401);
+    assert.equal((await app.req('/api/admin/login',{method:'POST',data:credentials})).res.status,429);
   } finally { await app.close(); }
 });
 
@@ -147,18 +121,15 @@ test('the admin session expires after eight hours', async () => {
 });
 
 test('an unconfigured server exposes the public catalog but denies admin login', async () => {
-  const app = await start({google:undefined});
+  const app = await start({credentials:undefined});
   try {
     assert.equal((await app.req('/api/site')).res.status,200);
-    assert.deepEqual((await app.req('/api/admin/login/status')).json, {configured:false,onConfiguredHost:false});
-    assert.equal((await app.req('/tools/hash-admin-password.mjs')).res.status,404);
-    const result = await app.req(startPath);
-    assert.equal(result.res.headers.get('location'),'/admin?login=unavailable');
-    assert.equal(result.res.headers.get('set-cookie'),null);
+    assert.deepEqual((await app.req('/api/admin/login/status')).json, {configured:false});
+    assert.equal((await app.req('/api/admin/login',{method:'POST',data:credentials})).res.status,503);
   } finally { await app.close(); }
 });
 
-test('changing the approved account revokes local sessions without changing site data', async () => {
+test('changing admin credentials revokes local sessions without changing site data', async () => {
   const dir = await mkdtemp(join(tmpdir(),'almaktab-auth-'));
   const dbPath = join(dir,'test.sqlite');
   let app;
@@ -169,7 +140,7 @@ test('changing the approved account revokes local sessions without changing site
     app = await start({dbPath,seed:false});
     assert.equal((await app.req('/api/admin/data',{cookie})).res.status,200);
     await app.close(); app = null;
-    app = await start({dbPath,seed:false,google:{...google,email:'replacement@gmail.com'}});
+    app = await start({dbPath,seed:false,credentials:{username:credentials.username,password:'another-long-password-for-admin'}});
     assert.equal((await app.req('/api/admin/data',{cookie})).res.status,401);
     await app.close(); app = null;
     app = await start({dbPath,seed:false});

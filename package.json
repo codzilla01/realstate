@@ -13,7 +13,6 @@
     "db:check": "node --env-file-if-exists=.env tools/check-database.mjs"
   },
   "dependencies": {
-    "@libsql/client": "^0.18.0",
-    "jose": "^6.2.18"
+    "@libsql/client": "^0.18.0"
   }
 }
