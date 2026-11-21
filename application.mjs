@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { CloudDatabaseError, databaseErrorBody } from './cloud-database-errors.mjs';
 import { initializeDatabase, propertyArgs, saveProperty } from './database.mjs';
 import { createAdminAuth, emailOK, normalizeDigits } from './admin-auth.mjs';
 import { cities, types, statuses, stages, samples, siteDefaults } from './catalog.mjs';
@@ -141,6 +142,10 @@ export async function createHandler({ db, adminUsername, adminPasswordHash, auth
       throw fail(404, 'المسار غير موجود.');
     } catch (e) {
       if (res.headersSent || res.destroyed) return;
+      if (e instanceof CloudDatabaseError) {
+        console.error('Database request failed:', e.code);
+        return json(res,503,databaseErrorBody(e));
+      }
       if (!e.status) console.error(e);
       json(res, e.status || 500, { error: e.status ? e.message : 'تعذر إكمال العملية. حاول مرة أخرى.' });
     }

@@ -76,3 +76,18 @@ test('Vercel instances share catalog, inquiries and password-based sessions', as
     await rm(dir,{recursive:true,force:true});
   }
 });
+
+test('Vercel reports missing Turso settings on cold start and during retry backoff', async () => {
+  const instance = await listen(createVercelHandler({env:{TURSO_DATABASE_URL:'libsql://example.turso.io'}}));
+  try {
+    for (const path of ['/api/site','/api/admin/data']) {
+      const response = await instance.fetch(path);
+      assert.equal(response.status,503);
+      assert.equal(response.headers.get('cache-control'),'no-store');
+      const payload = await response.json();
+      assert.equal(payload.code,'TURSO_CONFIG_MISSING');
+      assert.deepEqual(payload.missing,['TURSO_AUTH_TOKEN']);
+      assert.doesNotMatch(payload.error,/example\.turso\.io/);
+    }
+  } finally { await instance.close(); }
+});

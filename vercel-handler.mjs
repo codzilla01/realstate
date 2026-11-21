@@ -2,6 +2,7 @@ import { isIP } from 'node:net';
 import { createHandler } from './application.mjs';
 import { cloudDatabase } from './database.mjs';
 import { readAdminConfig } from './admin-auth.mjs';
+import { databaseError, databaseErrorBody } from './cloud-database-errors.mjs';
 
 const routePattern = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/;
 export function vercelPath(url) {
@@ -11,9 +12,9 @@ export function vercelPath(url) {
   const route = ['/', '/api', '/api/', '/api/almaktab', '/api/almaktab.js'].includes(pathname) ? searchParams.get('__route') : pathname.startsWith('/api/') ? pathname.slice(5) : null;
   return route && route.length <= 240 && routePattern.test(route) ? `/api/${route}` : null;
 }
-function json(res, status, message) {
+function json(res, status, payload) {
   res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
-  res.end(JSON.stringify({error:message}));
+  res.end(JSON.stringify(payload));
 }
 const ip = req => {
   const forwarded = req.headers['x-vercel-forwarded-for'] || req.headers['x-real-ip'];
@@ -31,20 +32,21 @@ async function initialize(env) {
 }
 
 export function createVercelHandler({ env = process.env, init = initialize } = {}) {
-  let pending, retryAt = 0;
+  let pending, failure, retryAt = 0;
   return async (req, res) => {
     const path = vercelPath(req.url);
-    if (!path) return json(res,404,'المسار غير موجود.');
+    if (!path) return json(res,404,{error:'المسار غير موجود.'});
     if (!pending && Date.now() >= retryAt) {
-      pending = Promise.resolve().then(() => init(env)).catch(() => {
-        console.error('Vercel API initialization failed. Check TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and database availability.');
+      pending = Promise.resolve().then(() => init(env)).catch(error => {
+        failure = databaseError(error);
+        console.error('Vercel database initialization:', failure.code, ...failure.missing);
         retryAt = Date.now()+10_000;
         pending = undefined;
         return null;
       });
     }
     const handler = await pending;
-    if (!handler) return json(res,503,'قاعدة بيانات Vercel غير متاحة. تحقّق من إعدادات قاعدة البيانات على الخادم.');
+    if (!handler) return json(res,503,databaseErrorBody(failure));
     return handler(req,res,path);
   };
 }
